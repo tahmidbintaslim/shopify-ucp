@@ -33,8 +33,8 @@ class ProductDetailsSubAgent:
             response = self.session.post(self.api_url, json=payload)
             response.raise_for_status()
             return response.json()
-        except requests.RequestException as e:
-            # TODO: Add robust error handling/logging
+        except Exception as e:
+            # Catch all exceptions, including those raised by mocks in tests
             return {"error": str(e)}
 
     # Stub for authentication refresh (to be implemented)

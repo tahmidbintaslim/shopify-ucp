@@ -79,23 +79,29 @@ class CatalogSearchSubAgent:
         # TODO: Implement robust error handling/logging as needed.
         print(f"CatalogSearchSubAgent Error: {error}")
 
-    def search_products(self, query: str, filters: Optional[Dict[str, Any]] = None, limit: int = 20) -> List[Dict[str, Any]]:
+
+    def search_global_products(self, query: str, filters: Optional[Dict[str, Any]] = None, limit: int = 20) -> dict:
         """
-        Search for products in the catalog.
+        Search for products globally using the Shopify Catalog MCP (JSON-RPC 2.0).
         Args:
             query (str): Search query string.
             filters (Optional[Dict[str, Any]]): Filtering options (e.g., price, tags).
             limit (int): Maximum number of results to return.
         Returns:
-            List[Dict[str, Any]]: List of product results.
+            dict: The full JSON-RPC response (with 'result' or 'error').
         """
         params = {
             "query": query,
             "filters": filters or {},
             "limit": limit
         }
-        result = self._json_rpc_call("catalog.searchProducts", params)
-        return result or []
+        try:
+            result = self._json_rpc_call("search_global_products", params)
+            if result is None:
+                return {"error": "API error or no result returned"}
+            return {"result": result}
+        except Exception as e:
+            return {"error": str(e)}
 
     def filter_products(self, products: List[Dict[str, Any]], filters: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
