@@ -1,0 +1,46 @@
+# Shopify App Configuration
+# This file tells Shopify how to route traffic to your Vercel app
+
+# Do not edit this manually. Use `shopify app config` to update.
+# See https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "YOUR_CLIENT_ID_HERE"
+name = "Universal Agent Gateway"
+application_url = "https://your-app.vercel.app"
+
+[webhooks]
+api_version = "2025-01"
+
+  [[webhooks.subscriptions]]
+  topics = ["orders/create"]
+  uri = "/webhooks"
+
+  [[webhooks.subscriptions]]
+  topics = ["app/uninstalled"]
+  uri = "/webhooks"
+
+[app_proxy]
+url = "https://your-app.vercel.app/api/proxy"
+subpath = "agent"
+prefix = "apps"
+
+[access_scopes]
+scopes = "write_products,read_products,read_orders,write_orders,read_checkouts,write_checkouts"
+
+[auth]
+redirect_urls = [
+  "https://your-app.vercel.app/auth/callback",
+  "https://your-app.vercel.app/auth/shopify/callback"
+]
+
+[pos]
+embedded = false
+
+[build]
+automatically_update_urls_on_dev = true
+dev_store_url = "your-dev-store.myshopify.com"
+
+[[extensions]]
+name = "AI Agent Discovery"
+handle = "agent-discovery"
+type = "theme"

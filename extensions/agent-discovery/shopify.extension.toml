@@ -1,0 +1,11 @@
+api_version = "2025-01"
+
+[[extensions]]
+type = "theme"
+name = "AI Agent Discovery"
+handle = "agent-discovery"
+
+  [[extensions.blocks]]
+  name = "UCP Meta Tag"
+  type = "ucp_meta"
+  target = "head"

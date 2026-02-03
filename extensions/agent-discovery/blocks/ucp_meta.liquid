@@ -1,0 +1,20 @@
+{% comment %}
+  UCP Meta Tag Injection
+  Injects a <link> tag into the merchant's theme.liquid <head>
+  This tells AI Agents where to find the UCP profile
+{% endcomment %}
+
+<link rel="agent-profile" href="https://{{ shop.domain }}/apps/agent/.well-known/ucp">
+
+{% comment %}
+  Also add a meta tag for crawlers that don't support link tags
+{% endcomment %}
+<meta name="agent-profile" content="https://{{ shop.domain }}/apps/agent/.well-known/ucp">
+
+{% schema %}
+{
+  "name": "AI Agent Connector",
+  "target": "head",
+  "settings": []
+}
+{% endschema %}

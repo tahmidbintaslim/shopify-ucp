@@ -1,0 +1,101 @@
+// 1. Setup & Generator
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 2. The Merchant (Multi-tenant Auth)
+// Stores Shopify OAuth tokens securely for 10,000+ shops
+model Session {
+  id          String    @id // Shopify Session ID
+  shop        String    @unique // e.g., "cool-brand.myshopify.com" - unique for relation
+  state       String
+  isOnline    Boolean   @default(false)
+  scope       String?
+  expires     DateTime?
+  accessToken String
+  userId      BigInt?
+
+  // Relation to our app's specific data
+  profile MerchantProfile?
+}
+
+// 3. The "Brain" Configuration
+// This lets the merchant customize how the AI talks about their brand.
+model MerchantProfile {
+  id              String   @id @default(uuid())
+  shop            String   @unique
+  session         Session  @relation(fields: [shop], references: [shop], onDelete: Cascade)
+
+  // AI Configuration
+  brandVoice      String   @default("friendly and professional")
+  returnPolicy    String?  // AI reads this before answering returns Qs
+  shippingInfo    String?  // Shipping policy summary
+  minFreeShipping Float    @default(0.0)
+
+  // Agent Status
+  isEnabled       Boolean  @default(true)
+  
+  // System Prompt Override (Advanced)
+  customPrompt    String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  interactions    AgentInteraction[]
+
+  @@index([shop])
+  @@index([isEnabled])
+}
+
+// 4. "Agent Analytics" (The ROI Engine)
+// Tracks every conversation and every dollar earned
+model AgentInteraction {
+  id             String   @id @default(uuid())
+  merchantId     String   // Links to MerchantProfile.id
+  merchant       MerchantProfile @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  // Interaction Details
+  sessionId      String?  // Agent session identifier
+  userIntent     String   // e.g. "search_products", "create_checkout", "ask_question"
+  inputQuery     String?  // "red sweater under $50"
+  agentResponse  String?  // Summary of what the AI returned
+
+  // Checkout Attribution
+  checkoutId     String?  // If a checkout was generated
+  checkoutUrl    String?
+  potentialValue Float?   // Value of items added to cart
+
+  // Conversion Tracking
+  converted      Boolean  @default(false) // Did they buy? (Updated via Webhook)
+  orderId        String?  // Shopify Order ID (Updated via Webhook)
+  orderValue     Float?   // Actual order value after purchase
+
+  // Metadata
+  userAgent      String?  // Which AI agent made the request
+  ipAddress      String?
+  timestamp      DateTime @default(now())
+
+  @@index([merchantId])
+  @@index([converted])
+  @@index([timestamp])
+  @@index([checkoutId])
+}
+
+// 5. Missed Opportunity Tracking (Viral Feature)
+// Track searches that returned 0 results
+model MissedOpportunity {
+  id         String   @id @default(uuid())
+  shop       String
+  searchTerm String
+  count      Int      @default(1)
+  lastSeen   DateTime @default(now())
+  
+  @@unique([shop, searchTerm])
+  @@index([shop])
+  @@index([count])
+}
