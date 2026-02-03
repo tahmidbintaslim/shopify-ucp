@@ -3,7 +3,12 @@
  * Anyone can visit and install the app to their Shopify store
  */
 
-import { json, redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "@remix-run/node";
+import {
+  json,
+  redirect,
+  type LoaderFunctionArgs,
+  type ActionFunctionArgs,
+} from "@remix-run/node";
 import { Form, useActionData, useNavigation } from "@remix-run/react";
 
 export async function loader({ request }: LoaderFunctionArgs) {
@@ -27,13 +32,13 @@ export async function action({ request }: ActionFunctionArgs) {
 
   // Normalize the shop domain
   let shop = shopInput.trim().toLowerCase();
-  
+
   // Remove protocol if present
   shop = shop.replace(/^https?:\/\//, "");
-  
+
   // Remove trailing slashes
   shop = shop.replace(/\/+$/, "");
-  
+
   // Add .myshopify.com if not present
   if (!shop.includes(".myshopify.com")) {
     shop = `${shop}.myshopify.com`;
@@ -42,7 +47,13 @@ export async function action({ request }: ActionFunctionArgs) {
   // Validate format
   const shopifyDomainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
   if (!shopifyDomainRegex.test(shop)) {
-    return json({ error: "Please enter a valid Shopify store URL (e.g., your-store.myshopify.com)" }, { status: 400 });
+    return json(
+      {
+        error:
+          "Please enter a valid Shopify store URL (e.g., your-store.myshopify.com)",
+      },
+      { status: 400 },
+    );
   }
 
   // Redirect to OAuth
@@ -59,9 +70,16 @@ export default function LandingPage() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Universal Agent Gateway - Connect AI Agents to Your Shopify Store</title>
-        <meta name="description" content="The Stripe for AI Agents. Enable AI assistants like ChatGPT, Claude, and Gemini to help your customers discover and purchase products." />
-        <style dangerouslySetInnerHTML={{ __html: `
+        <title>
+          Universal Agent Gateway - Connect AI Agents to Your Shopify Store
+        </title>
+        <meta
+          name="description"
+          content="The Stripe for AI Agents. Enable AI assistants like ChatGPT, Claude, and Gemini to help your customers discover and purchase products."
+        />
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -204,20 +222,23 @@ export default function LandingPage() {
             .hero .subtitle { font-size: 1.1rem; }
             .card { padding: 24px; margin: 0 10px; }
           }
-        `}} />
+        `,
+          }}
+        />
       </head>
       <body>
         <div className="container">
           <section className="hero">
             <h1>🤖 Universal Agent Gateway</h1>
             <p className="subtitle">
-              The "Stripe for AI Agents" — Connect ChatGPT, Claude, Gemini, and other AI assistants directly to your Shopify store.
+              The "Stripe for AI Agents" — Connect ChatGPT, Claude, Gemini, and
+              other AI assistants directly to your Shopify store.
             </p>
 
             <div className="card">
               <h2>Get Started in 60 Seconds</h2>
               <p>Enter your Shopify store URL to install the app</p>
-              
+
               <Form method="post">
                 <div className="input-group">
                   <label htmlFor="shop">Your Shopify Store URL</label>
@@ -243,24 +264,54 @@ export default function LandingPage() {
 
           <section className="features">
             <div className="feature">
-              <h3><span className="emoji">🛒</span> AI-Powered Sales</h3>
-              <p>Let AI agents search products, answer questions, and create checkout links for your customers — automatically.</p>
+              <h3>
+                <span className="emoji">🛒</span> AI-Powered Sales
+              </h3>
+              <p>
+                Let AI agents search products, answer questions, and create
+                checkout links for your customers — automatically.
+              </p>
             </div>
             <div className="feature">
-              <h3><span className="emoji">📊</span> Revenue Attribution</h3>
-              <p>Track every dollar earned through AI agents. See which conversations convert and optimize your AI strategy.</p>
+              <h3>
+                <span className="emoji">📊</span> Revenue Attribution
+              </h3>
+              <p>
+                Track every dollar earned through AI agents. See which
+                conversations convert and optimize your AI strategy.
+              </p>
             </div>
             <div className="feature">
-              <h3><span className="emoji">🔧</span> Zero Code Setup</h3>
-              <p>Install in one click. Configure your brand voice, policies, and let AI agents represent your store professionally.</p>
+              <h3>
+                <span className="emoji">🔧</span> Zero Code Setup
+              </h3>
+              <p>
+                Install in one click. Configure your brand voice, policies, and
+                let AI agents represent your store professionally.
+              </p>
             </div>
           </section>
 
           <footer className="footer">
             <p>Built for the AI commerce revolution 🚀</p>
             <p style={{ marginTop: "10px", fontSize: "14px" }}>
-              Powered by <a href="https://shopify.dev" target="_blank" rel="noopener noreferrer">Shopify</a> • 
-              Uses <a href="https://spec.modelcontextprotocol.io" target="_blank" rel="noopener noreferrer">MCP</a> Protocol
+              Powered by{" "}
+              <a
+                href="https://shopify.dev"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Shopify
+              </a>{" "}
+              • Uses{" "}
+              <a
+                href="https://spec.modelcontextprotocol.io"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                MCP
+              </a>{" "}
+              Protocol
             </p>
           </footer>
         </div>
