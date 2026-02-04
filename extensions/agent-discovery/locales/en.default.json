@@ -1,0 +1,6 @@
+{
+  "agent_discovery": {
+    "name": "Agent Discovery",
+    "description": "Enables AI agents to discover and connect with your store via the Universal Commerce Protocol (UCP)"
+  }
+}

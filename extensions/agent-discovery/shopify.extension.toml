@@ -1,6 +1,7 @@
 api_version = "2025-01"
 
 [[extensions]]
+uid = "9e99488a-0ac7-869b-6830-3127c05d6c8fba52d49b"
 type = "theme"
 name = "AI Agent Discovery"
 handle = "agent-discovery"
