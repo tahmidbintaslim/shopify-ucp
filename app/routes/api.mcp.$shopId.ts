@@ -18,6 +18,16 @@ import {
     formatProductsForAI,
     type MerchantContext,
 } from "../utils/agent-logic";
+import {
+    INVALID_PARAMS,
+    METHOD_NOT_FOUND,
+    PARSE_ERROR,
+    RpcError,
+    SERVER_ERROR,
+    parseRpcRequest,
+    rpcErrorResponse,
+    type RpcId,
+} from "../utils/json-rpc";
 
 // MCP Tool Definitions
 const TOOLS = [
@@ -98,11 +108,11 @@ async function getMerchantSession(shopId: string) {
     });
 
     if (!session) {
-        throw new Error("Shop not found");
+        throw new RpcError(SERVER_ERROR, "Shop not found", 404);
     }
 
     if (!session.profile?.isEnabled) {
-        throw new Error("AI Agent is disabled for this store");
+        throw new RpcError(SERVER_ERROR, "Agent is disabled for this shop", 403);
     }
 
     return session;
@@ -273,7 +283,7 @@ Share this link with the customer to complete their purchase.`,
         }
 
         default:
-            throw new Error(`Unknown tool: ${toolName}`);
+            throw new RpcError(INVALID_PARAMS, `Unknown tool: ${toolName}`);
     }
 }
 
@@ -288,12 +298,24 @@ export async function action({ request, params }: ActionFunctionArgs) {
         );
     }
 
+    let id: RpcId = null;
+    let method: string | undefined;
+
     try {
-        const body = await request.json();
-        const session = await getMerchantSession(shopId);
+        let body: unknown;
+        try {
+            body = await request.json();
+        } catch {
+            throw new RpcError(PARSE_ERROR, "Parse error", 400);
+        }
 
         // JSON-RPC 2.0 Protocol
-        const { method, params: rpcParams, id } = body;
+        const rpc = parseRpcRequest(body);
+        id = rpc.id;
+        method = rpc.method;
+        const rpcParams = rpc.params;
+
+        const session = await getMerchantSession(shopId);
 
         // Handle different MCP methods
         switch (method) {
@@ -329,9 +351,13 @@ export async function action({ request, params }: ActionFunctionArgs) {
             case "tools/call": {
                 const { name, arguments: toolArgs } = rpcParams;
 
+                if (typeof name !== "string") {
+                    throw new RpcError(INVALID_PARAMS, "Invalid params");
+                }
+
                 const result = await handleToolCall(
                     name,
-                    toolArgs || {},
+                    (toolArgs as Record<string, any>) || {},
                     session,
                     session.profile
                 );
@@ -395,7 +421,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
                     jsonrpc: "2.0",
                     id,
                     error: {
-                        code: -32602,
+                        code: INVALID_PARAMS,
                         message: "Resource not found",
                     },
                 });
@@ -406,22 +432,19 @@ export async function action({ request, params }: ActionFunctionArgs) {
                     jsonrpc: "2.0",
                     id,
                     error: {
-                        code: -32601,
+                        code: METHOD_NOT_FOUND,
                         message: `Method not found: ${method}`,
                     },
                 });
         }
     } catch (error) {
-        console.error("MCP Error:", error);
+        // Anonymous callers get a generic message; details stay in the server log.
+        if (!(error instanceof RpcError)) {
+            console.error("MCP request failed", { shop: shopId, method }, error);
+        }
 
-        return json({
-            jsonrpc: "2.0",
-            id: null,
-            error: {
-                code: -32603,
-                message: error instanceof Error ? error.message : "Internal error",
-            },
-        });
+        const { status, body } = rpcErrorResponse(id, error);
+        return json(body, { status });
     }
 }
 
@@ -455,6 +478,7 @@ export async function loader({ params }: LoaderFunctionArgs) {
             tools: TOOLS.map(t => t.name),
         });
     } catch (error) {
+        console.error("MCP status check failed", { shop: shopId }, error);
         return json({ error: "Internal error" }, { status: 500 });
     }
 }

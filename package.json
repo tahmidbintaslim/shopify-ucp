@@ -11,6 +11,7 @@
     "shopify": "shopify",
     "start": "remix-serve ./build/server/index.js",
     "typecheck": "tsc",
+    "test": "node --experimental-strip-types --test \"test/**/*.test.ts\"",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",

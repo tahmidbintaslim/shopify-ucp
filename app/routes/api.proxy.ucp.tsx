@@ -157,6 +157,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
       },
     });
   } catch (error) {
+    // authenticate.public.appProxy throws a Response (for example 400 on a
+    // bad signature); pass it through instead of turning it into a 500.
+    if (error instanceof Response) {
+      throw error;
+    }
+
     console.error("UCP Profile Error:", error);
     return json(
       { error: "Internal server error" },
