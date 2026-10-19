@@ -1,15 +1,10 @@
 /**
  * Public Landing Page - Marketing site for Universal Agent Gateway
- * Anyone can visit and install the app to their Shopify store
+ * The app is a prototype: public install does not work yet (session storage
+ * and OAuth are unfinished), so the page offers the source instead.
  */
 
-import {
-  json,
-  redirect,
-  type LoaderFunctionArgs,
-  type ActionFunctionArgs,
-} from "@remix-run/node";
-import { Form, useActionData, useNavigation } from "@remix-run/react";
+import { json, redirect, type LoaderFunctionArgs } from "@remix-run/node";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
@@ -22,49 +17,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   return json({});
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-  const formData = await request.formData();
-  const shopInput = formData.get("shop") as string;
-
-  if (!shopInput) {
-    return json({ error: "Please enter your store URL" }, { status: 400 });
-  }
-
-  // Normalize the shop domain
-  let shop = shopInput.trim().toLowerCase();
-
-  // Remove protocol if present
-  shop = shop.replace(/^https?:\/\//, "");
-
-  // Remove trailing slashes
-  shop = shop.replace(/\/+$/, "");
-
-  // Add .myshopify.com if not present
-  if (!shop.includes(".myshopify.com")) {
-    shop = `${shop}.myshopify.com`;
-  }
-
-  // Validate format
-  const shopifyDomainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
-  if (!shopifyDomainRegex.test(shop)) {
-    return json(
-      {
-        error:
-          "Please enter a valid Shopify store URL (e.g., your-store.myshopify.com)",
-      },
-      { status: 400 },
-    );
-  }
-
-  // Redirect to OAuth
-  return redirect(`/auth?shop=${encodeURIComponent(shop)}`);
-}
-
 export default function LandingPage() {
-  const actionData = useActionData<typeof action>();
-  const navigation = useNavigation();
-  const isSubmitting = navigation.state === "submitting";
-
   return (
     <html lang="en">
       <head>
@@ -174,6 +127,11 @@ export default function LandingPage() {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
           }
+          a.btn {
+            display: block;
+            text-align: center;
+            text-decoration: none;
+          }
           .btn:disabled {
             opacity: 0.7;
             cursor: not-allowed;
@@ -236,29 +194,18 @@ export default function LandingPage() {
             </p>
 
             <div className="card">
-              <h2>Get Started in 60 Seconds</h2>
-              <p>Enter your Shopify store URL to install the app</p>
-
-              <Form method="post">
-                <div className="input-group">
-                  <label htmlFor="shop">Your Shopify Store URL</label>
-                  <input
-                    type="text"
-                    id="shop"
-                    name="shop"
-                    placeholder="your-store.myshopify.com"
-                    required
-                    autoComplete="off"
-                    autoFocus
-                  />
-                  {actionData?.error && (
-                    <div className="error">{actionData.error}</div>
-                  )}
-                </div>
-                <button type="submit" className="btn" disabled={isSubmitting}>
-                  {isSubmitting ? "Connecting..." : "Install Free → "}
-                </button>
-              </Form>
+              <h2>Prototype: install is not available</h2>
+              <p>
+                This app is an unfinished prototype. Installing it on a store
+                does not work yet, and it is not listed in the Shopify App
+                Store.
+              </p>
+              <a
+                className="btn"
+                href="https://github.com/tahmidbintaslim/shopify-ucp"
+              >
+                View the source on GitHub
+              </a>
             </div>
           </section>
 
@@ -283,11 +230,11 @@ export default function LandingPage() {
             </div>
             <div className="feature">
               <h3>
-                <span className="emoji">🔧</span> Zero Code Setup
+                <span className="emoji">🔧</span> Store settings
               </h3>
               <p>
-                Install in one click. Configure your brand voice, policies, and
-                let AI agents represent your store professionally.
+                Set a brand voice, return policy and shipping notes. The MCP
+                endpoint returns them to agents that ask about the store.
               </p>
             </div>
           </section>
