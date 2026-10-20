@@ -23,12 +23,10 @@ export default function LandingPage() {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>
-          Universal Agent Gateway - Connect AI Agents to Your Shopify Store
-        </title>
+        <title>Universal Agent Gateway (prototype)</title>
         <meta
           name="description"
-          content="The Stripe for AI Agents. Enable AI assistants like ChatGPT, Claude, and Gemini to help your customers discover and purchase products."
+          content="A prototype Shopify app with an MCP-style JSON-RPC endpoint that AI agents can call to search a store's catalog. Not production-ready."
         />
         <style
           dangerouslySetInnerHTML={{
@@ -189,8 +187,8 @@ export default function LandingPage() {
           <section className="hero">
             <h1>🤖 Universal Agent Gateway</h1>
             <p className="subtitle">
-              The "Stripe for AI Agents" — Connect ChatGPT, Claude, Gemini, and
-              other AI assistants directly to your Shopify store.
+              A prototype Shopify app that gives AI agents an MCP-style
+              endpoint for searching a store's catalog.
             </p>
 
             <div className="card">
@@ -212,20 +210,20 @@ export default function LandingPage() {
           <section className="features">
             <div className="feature">
               <h3>
-                <span className="emoji">🛒</span> AI-Powered Sales
+                <span className="emoji">🛒</span> Product search
               </h3>
               <p>
-                Let AI agents search products, answer questions, and create
-                checkout links for your customers — automatically.
+                Agents can search products, look up a product by handle and
+                read the store's notes. Checkout links do not work yet.
               </p>
             </div>
             <div className="feature">
               <h3>
-                <span className="emoji">📊</span> Revenue Attribution
+                <span className="emoji">📊</span> Order attribution
               </h3>
               <p>
-                Track every dollar earned through AI agents. See which
-                conversations convert and optimize your AI strategy.
+                Designed to mark orders that started in an agent conversation.
+                It depends on checkout links, so it records nothing yet.
               </p>
             </div>
             <div className="feature">
@@ -240,9 +238,9 @@ export default function LandingPage() {
           </section>
 
           <footer className="footer">
-            <p>Built for the AI commerce revolution 🚀</p>
+            <p>An unfinished prototype. Not affiliated with Shopify.</p>
             <p style={{ marginTop: "10px", fontSize: "14px" }}>
-              Powered by{" "}
+              Built on the{" "}
               <a
                 href="https://shopify.dev"
                 target="_blank"
@@ -250,15 +248,15 @@ export default function LandingPage() {
               >
                 Shopify
               </a>{" "}
-              • Uses{" "}
+              Admin API • Modeled on the{" "}
               <a
-                href="https://spec.modelcontextprotocol.io"
+                href="https://modelcontextprotocol.io/specification/2024-11-05"
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 MCP
               </a>{" "}
-              Protocol
+              spec
             </p>
           </footer>
         </div>
