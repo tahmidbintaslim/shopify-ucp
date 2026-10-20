@@ -213,8 +213,9 @@ export default function LandingPage() {
                 <span className="emoji">🛒</span> Product search
               </h3>
               <p>
-                Agents can search products, look up a product by handle and
-                read the store's notes. Checkout links do not work yet.
+                Meant to let agents search products, look up a product by
+                handle and read the store's notes. It does not work yet,
+                because no store can install the app.
               </p>
             </div>
             <div className="feature">
@@ -231,8 +232,8 @@ export default function LandingPage() {
                 <span className="emoji">🔧</span> Store settings
               </h3>
               <p>
-                Set a brand voice, return policy and shipping notes. The MCP
-                endpoint returns them to agents that ask about the store.
+                Meant to let a merchant set a brand voice, return policy and
+                shipping notes for the MCP endpoint to return to agents.
               </p>
             </div>
           </section>

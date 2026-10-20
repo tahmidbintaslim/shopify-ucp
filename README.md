@@ -4,7 +4,7 @@
 
 Deployed prototype: [universal-agent-gateway.vercel.app](https://universal-agent-gateway.vercel.app) shows the landing page only. Install and the MCP endpoint do not work on that deployment.
 
-A Shopify embedded app (Remix 2, Polaris, Prisma on Neon Postgres) that lets AI agents query a store's catalog. It has four parts:
+A Shopify embedded app (Remix 2, Polaris, Prisma on Neon Postgres) that is meant to let AI agents query a store's catalog. It has four parts:
 
 - `/api/mcp/:shop`: a hand-written JSON-RPC 2.0 endpoint modeled on MCP (protocol version `2024-11-05`) with four tools. It calls the Shopify Admin GraphQL API with the shop's stored offline access token.
 - A JSON store profile served through the App Proxy. It uses its own `ucp_version: "1.0"` format, not the official Universal Commerce Protocol profile.
@@ -15,10 +15,11 @@ The app contains no language model. Agents that call the endpoint bring their ow
 
 ## Known issues
 
-- **Database connection.** `app/db.server.ts` passes a `Pool` instance to `PrismaNeon`, which expects a pool config. In production the connection string is lost and Prisma falls back to localhost, so every database call fails.
+- **Database connection.** `app/db.server.ts` passes a `Pool` instance to `PrismaNeon`, which expects a pool config. In production the connection string is lost and Prisma falls back to localhost, so every database call fails, even with `DATABASE_URL` set. Because of this, `npm start` in production mode exits about 10 seconds after it starts: the session storage checks for its table at startup, and that failed check is an unhandled promise rejection.
 - **Sessions.** The Prisma `Session` model is missing columns that `@shopify/shopify-app-session-storage-prisma` writes (`firstName`, `lastName`, `email`, `accountOwner`, `locale`, `collaborator`, `emailVerified`, `refreshToken`, `refreshTokenExpires`). OAuth cannot store a session, so installs fail. There are no Prisma migrations.
 - **Checkout.** `create_checkout` always fails: it sends the Storefront API `cartCreate` mutation to the Admin API. Order attribution depends on it, so no conversions are recorded in practice.
 - **No auth on the MCP endpoint.** It has no authentication and no rate limiting (see [Security](#security)).
+- **CORS.** The MCP route's `headers()` export does not apply to resource routes, so its responses carry no CORS headers, and an `OPTIONS` preflight is handled by the loader instead of answered with 204.
 - **Profile URL.** The profile is only reachable at `/apps/agent/ucp`. `/apps/agent/.well-known/ucp`, which the theme embed links to, returns 404 because the proxy route is not a splat route.
 - **Login page.** `app/routes/auth.login.tsx` calls `login(request)` without `await`. A valid shop domain never redirects to Shopify, and the rejected redirect is an unhandled promise rejection, which stops a Node process running with default settings (for example `npm start`).
 - **Lint.** `npm run lint` fails because the repo has no ESLint config.
