@@ -20,6 +20,7 @@ The app contains no language model. Agents that call the endpoint bring their ow
 - **Checkout.** `create_checkout` always fails: it sends the Storefront API `cartCreate` mutation to the Admin API. Order attribution depends on it, so no conversions are recorded in practice.
 - **No auth on the MCP endpoint.** It has no authentication and no rate limiting (see [Security](#security)).
 - **Profile URL.** The profile is only reachable at `/apps/agent/ucp`. `/apps/agent/.well-known/ucp`, which the theme embed links to, returns 404 because the proxy route is not a splat route.
+- **Login page.** `app/routes/auth.login.tsx` calls `login(request)` without `await`. A valid shop domain never redirects to Shopify, and the rejected redirect is an unhandled promise rejection, which stops a Node process running with default settings (for example `npm start`).
 - **Lint.** `npm run lint` fails because the repo has no ESLint config.
 - **Landing page markup.** The landing page renders its own `<html>` inside the root layout, which causes a React hydration error in the browser. React recovers by rendering the page on the client.
 
@@ -128,9 +129,9 @@ Set these environment variables in Vercel:
 
 - `SHOPIFY_API_KEY`
 - `SHOPIFY_API_SECRET`
-- `SCOPES`
 - `DATABASE_URL`
 - `SHOPIFY_APP_URL`
+- `SCOPES` (optional; leave it unset to use the defaults)
 
 ## How it works
 
