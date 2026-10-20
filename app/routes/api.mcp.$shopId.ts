@@ -25,6 +25,7 @@ import {
     RpcError,
     SERVER_ERROR,
     parseRpcRequest,
+    parseToolCall,
     requestId,
     rpcErrorResponse,
     type RpcId,
@@ -350,15 +351,11 @@ export async function action({ request, params }: ActionFunctionArgs) {
             }
 
             case "tools/call": {
-                const { name, arguments: toolArgs } = rpcParams;
-
-                if (typeof name !== "string") {
-                    throw new RpcError(INVALID_PARAMS, "Invalid params");
-                }
+                const { name, args } = parseToolCall(rpcParams);
 
                 const result = await handleToolCall(
                     name,
-                    (toolArgs as Record<string, any>) || {},
+                    args as Record<string, any>,
                     session,
                     session.profile
                 );

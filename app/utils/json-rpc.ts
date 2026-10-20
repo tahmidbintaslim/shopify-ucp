@@ -73,6 +73,25 @@ export function parseRpcRequest(body: unknown): RpcRequest {
     };
 }
 
+export interface ToolCall {
+    name: string;
+    args: Record<string, unknown>;
+}
+
+/** Validates tools/call params: a string tool name and optional object arguments. */
+export function parseToolCall(params: Record<string, unknown>): ToolCall {
+    const { name, arguments: args } = params;
+
+    if (
+        typeof name !== "string" ||
+        (args !== undefined && args !== null && !isPlainObject(args))
+    ) {
+        throw new RpcError(INVALID_PARAMS, "Invalid params", 400);
+    }
+
+    return { name, args: args ?? {} };
+}
+
 /** Maps any thrown value to an HTTP status and a JSON-RPC error body. */
 export function rpcErrorResponse(
     id: RpcId,

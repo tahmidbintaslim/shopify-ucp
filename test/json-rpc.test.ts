@@ -9,6 +9,7 @@ import {
     SERVER_ERROR,
     normalizeId,
     parseRpcRequest,
+    parseToolCall,
     requestId,
     rpcErrorResponse,
 } from "../app/utils/json-rpc.ts";
@@ -91,6 +92,43 @@ describe("parseRpcRequest", () => {
                 error.httpStatus === 400,
         );
     });
+});
+
+describe("parseToolCall", () => {
+    it("returns the tool name and arguments", () => {
+        assert.deepEqual(
+            parseToolCall({ name: "search_products", arguments: { query: "hat" } }),
+            { name: "search_products", args: { query: "hat" } },
+        );
+    });
+
+    it("defaults missing or null arguments to an empty object", () => {
+        assert.deepEqual(parseToolCall({ name: "get_store_info" }), {
+            name: "get_store_info",
+            args: {},
+        });
+        assert.deepEqual(parseToolCall({ name: "get_store_info", arguments: null }), {
+            name: "get_store_info",
+            args: {},
+        });
+    });
+
+    for (const [label, params] of [
+        ["a missing name", {}],
+        ["a non-string name", { name: 7 }],
+        ["array arguments", { name: "get_product", arguments: ["hat"] }],
+        ["string arguments", { name: "get_product", arguments: "hat" }],
+    ] as const) {
+        it(`rejects ${label} as invalid params (400)`, () => {
+            assert.throws(
+                () => parseToolCall(params as Record<string, unknown>),
+                (error: unknown) =>
+                    error instanceof RpcError &&
+                    error.code === INVALID_PARAMS &&
+                    error.httpStatus === 400,
+            );
+        });
+    }
 });
 
 describe("normalizeId", () => {
