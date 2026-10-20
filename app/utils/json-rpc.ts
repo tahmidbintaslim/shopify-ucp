@@ -51,6 +51,11 @@ export function normalizeId(id: unknown): RpcId {
     return typeof id === "string" || typeof id === "number" ? id : null;
 }
 
+/** The id to echo in a response, or null when the body has none. */
+export function requestId(body: unknown): RpcId {
+    return isPlainObject(body) ? normalizeId(body.id) : null;
+}
+
 /** Validates the shape of a parsed JSON-RPC request body. */
 export function parseRpcRequest(body: unknown): RpcRequest {
     if (!isPlainObject(body) || typeof body.method !== "string") {

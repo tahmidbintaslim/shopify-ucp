@@ -9,6 +9,7 @@ import {
     SERVER_ERROR,
     normalizeId,
     parseRpcRequest,
+    requestId,
     rpcErrorResponse,
 } from "../app/utils/json-rpc.ts";
 
@@ -98,5 +99,18 @@ describe("normalizeId", () => {
         assert.equal(normalizeId(0), 0);
         assert.equal(normalizeId({ nested: true }), null);
         assert.equal(normalizeId(undefined), null);
+    });
+});
+
+describe("requestId", () => {
+    it("reads the id of a request object, even one that fails validation", () => {
+        assert.equal(requestId({ id: 4, method: "tools/call", params: [1] }), 4);
+        assert.equal(requestId({ id: "x" }), "x");
+    });
+
+    it("returns null for bodies with no usable id", () => {
+        assert.equal(requestId([{ id: 1, method: "tools/list" }]), null);
+        assert.equal(requestId(null), null);
+        assert.equal(requestId({ method: "tools/list" }), null);
     });
 });

@@ -25,6 +25,7 @@ import {
     RpcError,
     SERVER_ERROR,
     parseRpcRequest,
+    requestId,
     rpcErrorResponse,
     type RpcId,
 } from "../utils/json-rpc";
@@ -309,9 +310,9 @@ export async function action({ request, params }: ActionFunctionArgs) {
             throw new RpcError(PARSE_ERROR, "Parse error", 400);
         }
 
-        // JSON-RPC 2.0 Protocol
+        // JSON-RPC 2.0 Protocol. Read the id first so validation errors echo it.
+        id = requestId(body);
         const rpc = parseRpcRequest(body);
-        id = rpc.id;
         method = rpc.method;
         const rpcParams = rpc.params;
 
