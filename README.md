@@ -248,4 +248,4 @@ Revenue is always formatted as USD, whatever the store's currency.
 
 ## License
 
-No license has been chosen yet, and the repository has no LICENSE file. Until one is added, no open-source license applies.
+MIT. See [LICENSE](LICENSE).
