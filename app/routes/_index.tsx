@@ -1,15 +1,10 @@
 /**
  * Public Landing Page - Marketing site for Universal Agent Gateway
- * Anyone can visit and install the app to their Shopify store
+ * The app is a prototype: public install does not work yet (session storage
+ * and OAuth are unfinished), so the page offers the source instead.
  */
 
-import {
-  json,
-  redirect,
-  type LoaderFunctionArgs,
-  type ActionFunctionArgs,
-} from "@remix-run/node";
-import { Form, useActionData, useNavigation } from "@remix-run/react";
+import { json, redirect, type LoaderFunctionArgs } from "@remix-run/node";
 
 export async function loader({ request }: LoaderFunctionArgs) {
   const url = new URL(request.url);
@@ -22,60 +17,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
   return json({});
 }
 
-export async function action({ request }: ActionFunctionArgs) {
-  const formData = await request.formData();
-  const shopInput = formData.get("shop") as string;
-
-  if (!shopInput) {
-    return json({ error: "Please enter your store URL" }, { status: 400 });
-  }
-
-  // Normalize the shop domain
-  let shop = shopInput.trim().toLowerCase();
-
-  // Remove protocol if present
-  shop = shop.replace(/^https?:\/\//, "");
-
-  // Remove trailing slashes
-  shop = shop.replace(/\/+$/, "");
-
-  // Add .myshopify.com if not present
-  if (!shop.includes(".myshopify.com")) {
-    shop = `${shop}.myshopify.com`;
-  }
-
-  // Validate format
-  const shopifyDomainRegex = /^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/;
-  if (!shopifyDomainRegex.test(shop)) {
-    return json(
-      {
-        error:
-          "Please enter a valid Shopify store URL (e.g., your-store.myshopify.com)",
-      },
-      { status: 400 },
-    );
-  }
-
-  // Redirect to OAuth
-  return redirect(`/auth?shop=${encodeURIComponent(shop)}`);
-}
-
 export default function LandingPage() {
-  const actionData = useActionData<typeof action>();
-  const navigation = useNavigation();
-  const isSubmitting = navigation.state === "submitting";
-
   return (
     <html lang="en">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>
-          Universal Agent Gateway - Connect AI Agents to Your Shopify Store
-        </title>
+        <title>Universal Agent Gateway (prototype)</title>
         <meta
           name="description"
-          content="The Stripe for AI Agents. Enable AI assistants like ChatGPT, Claude, and Gemini to help your customers discover and purchase products."
+          content="A prototype Shopify app with an MCP-style JSON-RPC endpoint that AI agents can call to search a store's catalog. Not production-ready."
         />
         <style
           dangerouslySetInnerHTML={{
@@ -174,6 +125,11 @@ export default function LandingPage() {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
           }
+          a.btn {
+            display: block;
+            text-align: center;
+            text-decoration: none;
+          }
           .btn:disabled {
             opacity: 0.7;
             cursor: not-allowed;
@@ -231,71 +187,61 @@ export default function LandingPage() {
           <section className="hero">
             <h1>🤖 Universal Agent Gateway</h1>
             <p className="subtitle">
-              The "Stripe for AI Agents" — Connect ChatGPT, Claude, Gemini, and
-              other AI assistants directly to your Shopify store.
+              A prototype Shopify app that gives AI agents an MCP-style
+              endpoint for searching a store's catalog.
             </p>
 
             <div className="card">
-              <h2>Get Started in 60 Seconds</h2>
-              <p>Enter your Shopify store URL to install the app</p>
-
-              <Form method="post">
-                <div className="input-group">
-                  <label htmlFor="shop">Your Shopify Store URL</label>
-                  <input
-                    type="text"
-                    id="shop"
-                    name="shop"
-                    placeholder="your-store.myshopify.com"
-                    required
-                    autoComplete="off"
-                    autoFocus
-                  />
-                  {actionData?.error && (
-                    <div className="error">{actionData.error}</div>
-                  )}
-                </div>
-                <button type="submit" className="btn" disabled={isSubmitting}>
-                  {isSubmitting ? "Connecting..." : "Install Free → "}
-                </button>
-              </Form>
+              <h2>Prototype: install is not available</h2>
+              <p>
+                This app is an unfinished prototype. Installing it on a store
+                does not work yet, and it is not listed in the Shopify App
+                Store.
+              </p>
+              <a
+                className="btn"
+                href="https://github.com/tahmidbintaslim/shopify-ucp"
+              >
+                View the source on GitHub
+              </a>
             </div>
           </section>
 
           <section className="features">
             <div className="feature">
               <h3>
-                <span className="emoji">🛒</span> AI-Powered Sales
+                <span className="emoji">🛒</span> Product search
               </h3>
               <p>
-                Let AI agents search products, answer questions, and create
-                checkout links for your customers — automatically.
+                Meant to let agents search products, look up a product by
+                handle and read the store's notes. It does not work yet,
+                because no store can install the app.
               </p>
             </div>
             <div className="feature">
               <h3>
-                <span className="emoji">📊</span> Revenue Attribution
+                <span className="emoji">📊</span> Order attribution
               </h3>
               <p>
-                Track every dollar earned through AI agents. See which
-                conversations convert and optimize your AI strategy.
+                Designed to mark orders that started in an agent conversation.
+                It depends on checkout links, so it records nothing yet.
               </p>
             </div>
             <div className="feature">
               <h3>
-                <span className="emoji">🔧</span> Zero Code Setup
+                <span className="emoji">🔧</span> Store settings
               </h3>
               <p>
-                Install in one click. Configure your brand voice, policies, and
-                let AI agents represent your store professionally.
+                Meant to let a merchant set a brand voice, return policy and
+                shipping notes for the MCP endpoint to return to agents.
               </p>
             </div>
           </section>
 
           <footer className="footer">
-            <p>Built for the AI commerce revolution 🚀</p>
+            <p>An unfinished prototype. Not affiliated with Shopify.</p>
             <p style={{ marginTop: "10px", fontSize: "14px" }}>
-              Powered by{" "}
+              Built on the{" "}
               <a
                 href="https://shopify.dev"
                 target="_blank"
@@ -303,15 +249,15 @@ export default function LandingPage() {
               >
                 Shopify
               </a>{" "}
-              • Uses{" "}
+              Admin API • Modeled on the{" "}
               <a
-                href="https://spec.modelcontextprotocol.io"
+                href="https://modelcontextprotocol.io/specification/2024-11-05"
                 target="_blank"
                 rel="noopener noreferrer"
               >
                 MCP
               </a>{" "}
-              Protocol
+              spec
             </p>
           </footer>
         </div>
