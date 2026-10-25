@@ -8,6 +8,16 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
 
+const prismaSessionStorage = new PrismaSessionStorage(prisma);
+
+// The storage checks for its table when it is created and leaves that
+// promise without a handler. If the database is unreachable, the rejection
+// stops a plain Node server (`npm start`). Handle it here; session reads and
+// writes still fail with the same error until the table is reachable.
+(prismaSessionStorage as unknown as { ready: Promise<boolean> }).ready.catch((error) => {
+    console.error("Session storage is not ready. Check DATABASE_URL and run the Prisma migrations.", error);
+});
+
 const shopify = shopifyApp({
     apiKey: process.env.SHOPIFY_API_KEY,
     apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
@@ -22,7 +32,7 @@ const shopify = shopifyApp({
     ],
     appUrl: process.env.SHOPIFY_APP_URL || "",
     authPathPrefix: "/auth",
-    sessionStorage: new PrismaSessionStorage(prisma),
+    sessionStorage: prismaSessionStorage,
     distribution: AppDistribution.AppStore,
     webhooks: {
         ORDERS_CREATE: {
