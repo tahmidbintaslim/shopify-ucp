@@ -8,6 +8,10 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
 
+// Only the scopes the code uses: product search and lookup, and the
+// orders/create webhook. Keep in sync with shopify.app.toml.
+const DEFAULT_SCOPES = ["read_products", "read_orders"];
+
 const prismaSessionStorage = new PrismaSessionStorage(prisma);
 
 // The storage checks for its table when it is created and leaves that
@@ -22,14 +26,7 @@ const shopify = shopifyApp({
     apiKey: process.env.SHOPIFY_API_KEY,
     apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
     apiVersion: ApiVersion.October25,
-    scopes: process.env.SCOPES?.split(",") || [
-        "write_products",
-        "read_products",
-        "read_orders",
-        "write_orders",
-        "write_checkouts",
-        "read_checkouts",
-    ],
+    scopes: process.env.SCOPES?.split(",") || DEFAULT_SCOPES,
     appUrl: process.env.SHOPIFY_APP_URL || "",
     authPathPrefix: "/auth",
     sessionStorage: prismaSessionStorage,
