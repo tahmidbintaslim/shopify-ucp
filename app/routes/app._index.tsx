@@ -25,7 +25,6 @@ import {
   Divider,
   DataTable,
   EmptyState,
-  SkeletonBodyText,
   InlineStack,
   Icon,
 } from "@shopify/polaris";
@@ -140,7 +139,6 @@ export default function Dashboard() {
     recentInteractions,
     missedOpportunities,
     isSetupComplete,
-    shop,
   } = useLoaderData<typeof loader>();
 
   const submit = useSubmit();

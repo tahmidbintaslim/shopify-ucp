@@ -10,8 +10,7 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
 export async function action({ request }: ActionFunctionArgs) {
-  const { topic, shop, session, admin, payload } =
-    await authenticate.webhook(request);
+  const { topic, shop, payload } = await authenticate.webhook(request);
 
   console.log(`📬 Received webhook: ${topic} for ${shop}`);
 
@@ -62,7 +61,7 @@ async function handleOrderCreate(shop: string, payload: any) {
     }
 
     // Update our DB to mark this as a successful conversion
-    const updatedInteraction = await prisma.agentInteraction.update({
+    await prisma.agentInteraction.update({
       where: { id: interactionId },
       data: {
         converted: true,
