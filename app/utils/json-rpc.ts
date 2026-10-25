@@ -117,3 +117,34 @@ export function rpcErrorResponse(
         },
     };
 }
+
+/** Thrown while the database is missing or unreachable. Maps to HTTP 503. */
+export function serviceUnavailable(): RpcError {
+    return new RpcError(SERVER_ERROR, "Service unavailable", 503);
+}
+
+/** Reads a required, non-empty string tool argument. */
+export function requireStringArg(args: Record<string, unknown>, key: string): string {
+    const value = args[key];
+
+    if (typeof value !== "string" || value.trim() === "") {
+        throw new RpcError(INVALID_PARAMS, `Invalid params: "${key}" must be a non-empty string`, 400);
+    }
+
+    return value.trim();
+}
+
+export const SEARCH_LIMIT_DEFAULT = 10;
+export const SEARCH_LIMIT_MAX = 50;
+
+/**
+ * The search_products result count: a whole number from 1 to SEARCH_LIMIT_MAX.
+ * A missing or non-numeric value gets the default; anything else is clamped.
+ */
+export function clampSearchLimit(value: unknown): number {
+    if (typeof value !== "number" || !Number.isFinite(value)) {
+        return SEARCH_LIMIT_DEFAULT;
+    }
+
+    return Math.min(SEARCH_LIMIT_MAX, Math.max(1, Math.trunc(value)));
+}
