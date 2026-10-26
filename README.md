@@ -195,7 +195,7 @@ JSON-RPC 2.0. `:shop` is the shop's `myshopify.com` domain. CORS is open (`*`), 
 
 | Status | When |
 | --- | --- |
-| 200 | Success, a JSON-RPC method error (unknown method or resource), or a tool error result |
+| 200 | Success, a JSON-RPC method error (unknown method, resource or tool name), or a tool error result |
 | 400 | Malformed JSON, an invalid request or invalid params |
 | 403 | The merchant turned the agent off |
 | 404 | No installed shop with that domain |
