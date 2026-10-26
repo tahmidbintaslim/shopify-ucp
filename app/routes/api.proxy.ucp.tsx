@@ -62,7 +62,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
         },
         {
           type: "checkout",
-          description: "Create instant checkout links",
+          description: "Not available yet: create_checkout returns an error result",
           mcp_endpoint: `${process.env.SHOPIFY_APP_URL}/api/mcp/${encodeURIComponent(shop)}`,
         },
         {
@@ -84,8 +84,10 @@ export async function loader({ request }: LoaderFunctionArgs) {
               },
               limit: {
                 type: "integer",
-                description: "Maximum number of results (default: 10)",
+                description: "Maximum number of results (1 to 50, default 10)",
                 default: 10,
+                minimum: 1,
+                maximum: 50,
               },
             },
             required: ["query"],
@@ -107,7 +109,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
         },
         {
           name: "create_checkout",
-          description: "Create an instant checkout link for products",
+          description:
+            "Not available yet: returns an error result for every call",
           parameters: {
             type: "object",
             properties: {
@@ -134,7 +137,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
             properties: {
               topic: {
                 type: "string",
-                enum: ["shipping", "returns", "contact", "about"],
+                enum: ["shipping", "returns", "brand", "all"],
                 description: "Topic to get information about",
               },
             },

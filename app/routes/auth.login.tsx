@@ -21,13 +21,15 @@ import {
 import { useState } from "react";
 import { login } from "../shopify.server";
 
+// login() throws a redirect to Shopify for a valid shop domain and returns
+// field errors otherwise, so it has to be awaited.
 export async function loader({ request }: LoaderFunctionArgs) {
-  const errors = login(request);
+  const errors = await login(request);
   return json({ errors, polarisTranslations: {} });
 }
 
 export async function action({ request }: ActionFunctionArgs) {
-  const errors = login(request);
+  const errors = await login(request);
   return json({ errors });
 }
 

@@ -1,250 +1,274 @@
 # Universal Agent Gateway
 
-**Status: prototype, not production-ready.** Installing it on a store does not work yet, and parts of the API below are broken (see [Known issues](#known-issues)). Do not use it with a real store.
+A prototype Shopify embedded app that gives AI agents an MCP-style JSON-RPC endpoint for searching a store's catalog and reading its policies.
 
-Deployed prototype: [universal-agent-gateway.vercel.app](https://universal-agent-gateway.vercel.app) shows the landing page only. Install and the MCP endpoint do not work on that deployment.
+[![CI](https://github.com/tahmidbintaslim/shopify-ucp/actions/workflows/ci.yml/badge.svg)](https://github.com/tahmidbintaslim/shopify-ucp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Status: prototype](https://img.shields.io/badge/status-prototype-orange.svg)
 
-A Shopify embedded app (Remix 2, Polaris, Prisma on Neon Postgres) that is meant to let AI agents query a store's catalog. It has four parts:
+**Status: prototype, not production-ready.** The app has not been installed on a real store yet, the MCP endpoint has no authentication, and checkout links are not built. See [Status and roadmap](#status-and-roadmap).
 
-- `/api/mcp/:shop`: a hand-written JSON-RPC 2.0 endpoint modeled on MCP (protocol version `2024-11-05`) with four tools. It calls the Shopify Admin GraphQL API with the shop's stored offline access token.
-- A JSON store profile served through the App Proxy. It uses its own `ucp_version: "1.0"` format, not the official Universal Commerce Protocol profile.
-- A theme app embed that adds a `<link rel="agent-profile">` tag to the storefront.
-- An admin dashboard (interaction counts and attributed revenue), a settings page and a keyword-matching playground.
+**Deployed landing page:** [universal-agent-gateway.vercel.app](https://universal-agent-gateway.vercel.app). No store has the app installed there, so the deployment shows the landing page only.
 
-The app contains no language model. Agents that call the endpoint bring their own.
+<p>
+  <img src="docs/images/landing-desktop.webp" alt="Landing page of the Universal Agent Gateway prototype on desktop: title, a card saying install is not available with a link to the source on GitHub, and three feature cards for product search, order attribution and store settings" width="640">
+  <img src="docs/images/landing-mobile.webp" alt="The same landing page on a 390 pixel wide phone screen" width="180">
+</p>
 
-## Known issues
+## Features
 
-- **Database connection.** `app/db.server.ts` passes a `Pool` instance to `PrismaNeon`, which expects a pool config. In production the connection string is lost and Prisma falls back to localhost, so every database call fails, even with `DATABASE_URL` set. Because of this, `npm start` in production mode exits about 10 seconds after it starts: the session storage checks for its table at startup, and that failed check is an unhandled promise rejection.
-- **Sessions.** The Prisma `Session` model is missing columns that `@shopify/shopify-app-session-storage-prisma` writes (`firstName`, `lastName`, `email`, `accountOwner`, `locale`, `collaborator`, `emailVerified`, `refreshToken`, `refreshTokenExpires`). OAuth cannot store a session, so installs fail. There are no Prisma migrations.
-- **Checkout.** `create_checkout` always fails: it sends the Storefront API `cartCreate` mutation to the Admin API. Order attribution depends on it, so no conversions are recorded in practice.
-- **No auth on the MCP endpoint.** It has no authentication and no rate limiting (see [Security](#security)).
-- **CORS.** The MCP route's `headers()` export does not apply to resource routes, so its responses carry no CORS headers, and an `OPTIONS` preflight is handled by the loader instead of answered with 204.
-- **Profile URL.** The profile is only reachable at `/apps/agent/ucp`. `/apps/agent/.well-known/ucp`, which the theme embed links to, returns 404 because the proxy route is not a splat route.
-- **Login page.** `app/routes/auth.login.tsx` calls `login(request)` without `await`. A valid shop domain never redirects to Shopify, and the rejected redirect is an unhandled promise rejection, which stops a Node process running with default settings (for example `npm start`).
-- **Lint.** `npm run lint` fails because the repo has no ESLint config.
-- **Landing page markup.** The landing page renders its own `<html>` inside the root layout, which causes a React hydration error in the browser. React recovers by rendering the page on the client.
+What the code does today:
 
-## Quick start
+- **MCP-style endpoint** (`/api/mcp/:shop`): JSON-RPC 2.0 over plain HTTP POST, modeled on MCP protocol version `2024-11-05`. It implements `initialize`, `tools/list`, `tools/call`, `resources/list` and `resources/read`. It is hand-written, not built on the MCP SDK, and has no SSE streaming.
+- **Tools**: `search_products` and `get_product` call the Shopify Admin GraphQL API with the shop's stored offline token. `get_store_info` returns the brand voice, shipping and return notes the merchant saved. `create_checkout` is listed but returns an MCP error result (`isError: true`), because checkout links are not built yet.
+- **Input checks and clear errors**: invalid arguments get HTTP 400, an unknown shop 404, a disabled agent 403, a missing or unreachable database 503, and any other failure a generic 500. Details go to the server log only. The search limit is clamped to 1 to 50.
+- **Store profile** served through the Shopify App Proxy at `/apps/agent/ucp` and `/apps/agent/.well-known/ucp`. It uses its own `ucp_version: "1.0"` format, not the official Universal Commerce Protocol profile.
+- **Theme app embed** that adds `<link rel="agent-profile">` to the storefront `<head>`.
+- **Embedded admin** (Polaris): a dashboard with interaction counts, a settings page for brand voice and policies, and a keyword-matching test chat. There is no language model in the app; agents bring their own.
+- **Webhooks**: `app/uninstalled` deletes the shop's data. `orders/create` is meant to mark orders that came from an agent, but it depends on checkout links, so it records nothing yet.
+
+## Tech stack
+
+| Layer | Tools |
+| --- | --- |
+| App | Remix 2 (Vite), React 18, TypeScript, `@shopify/shopify-app-remix` |
+| Admin UI | Shopify Polaris 13, App Bridge |
+| Data | Prisma 6, PostgreSQL (Neon serverless driver in production) |
+| Shopify | Admin GraphQL API 2025-10, App Proxy, theme app extension, webhooks |
+| Hosting | Vercel |
+| Quality | ESLint 8, `node:test`, GitHub Actions, Dependabot |
+
+## Architecture
+
+```mermaid
+flowchart LR
+  agent["AI agent<br/>(brings its own model)"] -- "JSON-RPC 2.0 POST" --> mcp
+  storefront["Storefront with the theme embed"] -- "link rel=agent-profile" --> appproxy["Shopify App Proxy<br/>/apps/agent/*"]
+  appproxy -- "signed request" --> profile
+  merchant["Merchant in the Shopify admin"] --> admin
+  shopify["Shopify"] -- "orders/create, app/uninstalled" --> webhooks
+
+  subgraph vercel["Remix app on Vercel"]
+    mcp["/api/mcp/:shop"]
+    profile["/api/proxy/ucp<br/>/api/proxy/.well-known/ucp"]
+    admin["/app/* embedded admin"]
+    webhooks["/webhooks"]
+  end
+
+  vercel --> db[("PostgreSQL via Prisma<br/>sessions, settings, interactions")]
+  mcp -- "offline access token" --> adminapi["Shopify Admin GraphQL API"]
+```
+
+The MCP endpoint looks up the shop's offline session and settings in Postgres, then calls the Admin API with that session's token. Each `search_products`, `get_product` and `get_store_info` call is logged as an `AgentInteraction` row, which the dashboard counts.
+
+## Getting started
 
 ### Prerequisites
 
-- Node.js 20.10 or later (required by `@shopify/cli`, `@shopify/shopify-app-remix` and Polaris). CI uses Node 22, and `npm test` needs Node 22.6 or later.
-- A Shopify Partner account
-- A Neon database (PostgreSQL)
-- A Vercel account, if you deploy there
+- Node.js 22.6 or later (`.nvmrc` pins 22). The app runs on 20.10 or later, but `npm test` uses `--experimental-strip-types`, which needs 22.6.
+- PostgreSQL 14 or later for local development, or a [Neon](https://neon.tech) database. Production builds connect through the Neon serverless driver, so a deployment needs Neon.
+- To install the app on a store: a [Shopify Partner](https://partners.shopify.com) account and a development store. You can try the MCP endpoint without them (see below).
 
-### 1. Install dependencies
+### Install
 
 ```bash
 git clone https://github.com/tahmidbintaslim/shopify-ucp.git
 cd shopify-ucp
-npm install
-```
-
-### 2. Set up environment variables
-
-```bash
+npm ci            # also runs prisma generate
 cp .env.example .env
+# edit .env, at least DATABASE_URL, then export it for the commands below:
+set -a; . ./.env; set +a
 ```
 
-Edit `.env` with your credentials:
+Every variable is described in [`.env.example`](.env.example):
 
-- `SHOPIFY_API_KEY`: app client ID from the Partners dashboard
-- `SHOPIFY_API_SECRET`: app client secret from the Partners dashboard
-- `SHOPIFY_APP_URL`: the app's public URL, for example your Vercel domain
-- `DATABASE_URL`: connection string from the Neon dashboard
-- `SCOPES` (optional): comma-separated access scopes; the defaults are in `app/shopify.server.ts`
-- `SHOP_CUSTOM_DOMAIN` (optional): an extra shop domain to accept
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | yes | PostgreSQL connection string |
+| `SHOPIFY_API_KEY` | yes | App client ID (set by `shopify app dev`) |
+| `SHOPIFY_API_SECRET` | yes | App client secret (set by `shopify app dev`) |
+| `SHOPIFY_APP_URL` | yes | Public URL of the app (set by `shopify app dev`) |
+| `SCOPES` | no | Overrides the default scopes `read_products,read_orders` |
+| `SHOP_CUSTOM_DOMAIN` | no | An extra shop domain to accept |
 
-### 3. Initialize the database
+### Create the database tables
 
 ```bash
-npx prisma generate
-npx prisma db push
+npx prisma migrate deploy    # or: npm run prisma:deploy
 ```
 
-### 4. Run the development server
+### Option A: try the MCP endpoint without a Shopify store
+
+This runs the Remix dev server directly and adds a placeholder shop to your local database.
 
 ```bash
-npm run dev
+psql "$DATABASE_URL" -f scripts/demo-shop.sql
+
+SHOPIFY_API_KEY=local SHOPIFY_API_SECRET=local SHOPIFY_APP_URL=http://localhost:5173 \
+  npx remix vite:dev --port 5173
 ```
 
-This starts the Shopify CLI development server with hot reloading.
+Then, in another terminal:
+
+```bash
+curl -s http://localhost:5173/api/mcp/demo-store.myshopify.com \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_store_info","arguments":{"topic":"shipping"}}}'
+```
+
+```json
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"**Shipping:** Ships in 2 business days.\nFree shipping on orders over $75.\n\n"}]}}
+```
+
+`initialize`, `tools/list`, `get_store_info` and `resources/read` work this way. `search_products` and `get_product` return `Internal error`, because the placeholder shop has no real Admin API token.
+
+### Option B: run it as a Shopify app
+
+With a Partner account and a development store:
+
+```bash
+npm run dev       # shopify app dev: links the app, opens a tunnel, installs on your dev store
+```
+
+The Shopify CLI sets `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET` and `SHOPIFY_APP_URL`. You still need `DATABASE_URL` in `.env`. This path has not been run end to end yet; see [Status and roadmap](#status-and-roadmap).
 
 ### Checks
 
+These are the same commands CI runs:
+
 ```bash
+npm run lint
 npm run typecheck
 npm test
+npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
 npm run build
 ```
+
+## Deployment
+
+The app is deployed on Vercel through its GitHub integration: pushes to `main` deploy to production, and each pull request gets a preview deployment. Vercel builds with `npm run build`; no `vercel.json` is needed.
+
+1. Set these environment variables in the Vercel project: `DATABASE_URL` (Neon), `SHOPIFY_API_KEY`, `SHOPIFY_API_SECRET`, `SHOPIFY_APP_URL`. Leave `SCOPES` unset unless you change the scopes in `shopify.app.toml` too.
+2. Apply the migrations to the production database. The build does not run them:
+
+   ```bash
+   DATABASE_URL="<production Neon URL>" npx prisma migrate deploy
+   ```
+
+   A database created earlier with `prisma db push` already has the tables. Bring it up to date and record the first migration as applied instead:
+
+   ```bash
+   DATABASE_URL="<production Neon URL>" npx prisma db push
+   DATABASE_URL="<production Neon URL>" npx prisma migrate resolve --applied 20261025000000_init
+   ```
+
+3. Push the app configuration in `shopify.app.toml` (URLs, scopes, webhooks, App Proxy) to Shopify:
+
+   ```bash
+   npx shopify app deploy
+   ```
+
+### Shopify app configuration
+
+`shopify.app.toml` is the source of truth, and `shopify app deploy` applies it. For reference, it sets:
+
+- App URL: `https://universal-agent-gateway.vercel.app`
+- Allowed redirection URL: `https://universal-agent-gateway.vercel.app/auth/callback`
+- App Proxy: prefix `apps`, subpath `agent`, proxy URL `https://universal-agent-gateway.vercel.app/api/proxy`
+- Scopes: `read_products,read_orders`
+- Webhooks: `orders/create` and `app/uninstalled` to `/webhooks`, plus the three compliance topics
+
+Shopify treats order data as protected customer data. Request access under **API access** in the Partner Dashboard before relying on the `orders/create` webhook.
+
+## API
+
+### `POST /api/mcp/:shop`
+
+JSON-RPC 2.0. `:shop` is the shop's `myshopify.com` domain. CORS is open (`*`), and `OPTIONS` answers 204.
+
+| Tool | Arguments | Notes |
+| --- | --- | --- |
+| `search_products` | `query` (string, required), `limit` (1 to 50, default 10) | Admin API search, so results can include draft and unpublished products. A search with no results is recorded as a missed search. |
+| `get_product` | `handle` (string, required) | Uses the Admin API `productByHandle` query. |
+| `get_store_info` | `topic`: `shipping`, `returns`, `brand` or `all` (default) | Reads the merchant's saved settings; no Shopify call. |
+| `create_checkout` | `variant_ids`, `quantities` | Not available yet: returns `isError: true`. |
+
+| Status | When |
+| --- | --- |
+| 200 | Success, a JSON-RPC method error (unknown method, resource or tool name), or a tool error result |
+| 400 | Malformed JSON, an invalid request or invalid params |
+| 403 | The merchant turned the agent off |
+| 404 | No installed shop with that domain |
+| 500 | Any other failure, with the generic message `Internal error` |
+| 503 | `DATABASE_URL` is not set or the database cannot be reached |
+
+### `GET /api/mcp/:shop`
+
+Returns a status summary for an installed shop (`status`, `agentEnabled`, endpoint URL and tool names), or the 404 and 503 errors above.
+
+### `GET /apps/agent/ucp` and `GET /apps/agent/.well-known/ucp`
+
+The store profile, served through the App Proxy. Requests must carry a valid App Proxy signature; Shopify adds it.
+
+### `POST /webhooks`
+
+Verified with Shopify's HMAC signature. Handles `ORDERS_CREATE` and `APP_UNINSTALLED`. The compliance topics are subscribed in `shopify.app.toml` and only logged.
 
 ## Project structure
 
 ```
-/shopify-ucp
-├── prisma/
-│   └── schema.prisma           # Database schema (Session, MerchantProfile, interactions)
-├── app/
-│   ├── db.server.ts            # Neon PostgreSQL connection
-│   ├── shopify.server.ts       # Auth and webhook registration
-│   ├── routes/
-│   │   ├── _index.tsx          # Public landing page
-│   │   ├── app._index.tsx      # Merchant dashboard (stats and agent toggle)
-│   │   ├── app.settings.tsx    # Brand voice, return policy, shipping notes
-│   │   ├── app.playground.tsx  # Keyword-matching test chat
-│   │   ├── api.mcp.$shopId.ts  # JSON-RPC (MCP-style) endpoint
-│   │   ├── api.proxy.ucp.tsx   # Store profile served through the App Proxy
-│   │   └── webhooks.tsx        # Order attribution and uninstall cleanup
-│   └── utils/
-│       ├── agent-logic.ts      # Shopify Admin GraphQL operations
-│       └── json-rpc.ts         # JSON-RPC request parsing and safe error responses
-├── extensions/
-│   └── agent-discovery/        # Theme app embed (adds the <link> tag)
-├── test/                       # Unit tests (node:test)
-└── shopify.app.toml            # Shopify app configuration
+app/
+├── db.server.ts              # Prisma client (Neon adapter in production)
+├── shopify.server.ts         # shopifyApp config, scopes, session storage
+├── routes/
+│   ├── _index.tsx            # Public landing page
+│   ├── api.mcp.$shopId.ts    # MCP-style JSON-RPC endpoint
+│   ├── api.proxy.$.tsx       # App Proxy catch-all (.well-known/ucp)
+│   ├── api.proxy.ucp.tsx     # Store profile
+│   ├── app._index.tsx        # Merchant dashboard
+│   ├── app.settings.tsx      # Brand voice and policy settings
+│   ├── app.playground.tsx    # Keyword-matching test chat
+│   ├── auth.*.tsx            # Login and OAuth routes
+│   └── webhooks.tsx          # Order attribution and uninstall cleanup
+└── utils/
+    ├── agent-logic.ts        # Admin GraphQL queries and interaction logging
+    └── json-rpc.ts           # JSON-RPC parsing, argument checks, safe errors
+extensions/agent-discovery/   # Theme app embed (adds the <link> tag)
+prisma/                       # Schema and migrations
+scripts/demo-shop.sql         # Placeholder shop for local testing
+test/                         # Unit tests (node:test)
+shopify.app.toml              # Shopify app configuration
 ```
-
-## Configuration
-
-### Shopify Partners dashboard
-
-1. Create a new app in your Partners dashboard
-2. Set the **App URL** to your Vercel domain
-3. Configure the **App Proxy**:
-   - Subpath prefix: `apps`
-   - Subpath: `agent`
-   - Proxy URL: `https://your-vercel-app.com/api/proxy`
-4. Set **Allowed redirection URLs**:
-   - `https://your-app.vercel.app/auth/callback`
-   - `https://your-app.vercel.app/auth/shopify/callback`
-
-### Vercel deployment
-
-```bash
-vercel
-```
-
-Set these environment variables in Vercel:
-
-- `SHOPIFY_API_KEY`
-- `SHOPIFY_API_SECRET`
-- `DATABASE_URL`
-- `SHOPIFY_APP_URL`
-- `SCOPES` (optional; leave it unset to use the defaults)
-
-## How it works
-
-### 1. Store profile
-
-With the App Proxy configured as above, the store profile is served at:
-
-```
-https://merchant-store.myshopify.com/apps/agent/ucp
-```
-
-It lists the store, the MCP endpoint URL and the tools. It is a custom format (`ucp_version: "1.0"`), not a profile that follows the Universal Commerce Protocol specification, and it is not served at the store's root `/.well-known/ucp`.
-
-### 2. MCP endpoint
-
-Agents send JSON-RPC 2.0 requests over plain HTTP POST to:
-
-- search products
-- get product details
-- read the store's brand voice, shipping and return notes
-
-`create_checkout` is listed but does not work yet (see [Known issues](#known-issues)). The endpoint implements `initialize`, `tools/list`, `tools/call`, `resources/list` and `resources/read`. It does not use the MCP SDK and has no streaming (SSE) support.
-
-### 3. Attribution tracking
-
-The design: when a checkout is created, these cart attributes are added:
-
-```json
-{
-  "_source": "universal_agent_gateway",
-  "_interaction_id": "uuid-here"
-}
-```
-
-When the order is placed, the `orders/create` webhook marks the interaction as converted. Because `create_checkout` fails, this path does not run today.
-
-## API endpoints
-
-### Store profile
-
-```
-GET /apps/agent/ucp
-```
-
-Returns the store profile described above. Requests must carry a valid App Proxy signature.
-
-### MCP server
-
-```
-POST /api/mcp/:shopId
-```
-
-Handles MCP-style tool calls (JSON-RPC 2.0).
-
-Available tools:
-
-- `search_products`: search the product catalog. It uses the Admin API, so results can include draft and unpublished products.
-- `get_product`: get product details by handle
-- `create_checkout`: meant to create a checkout link; it currently always fails
-- `get_store_info`: return the brand voice, shipping and return notes saved in settings
-
-Errors: a malformed request returns HTTP 400, an unknown shop 404, a disabled agent 403, and any internal failure HTTP 500 with the generic message `Internal error`. Error details are written to the server log only.
-
-`GET /api/mcp/:shopId` returns a status summary for an installed shop.
-
-### Webhooks
-
-```
-POST /webhooks
-```
-
-Handles `ORDERS_CREATE` for conversion tracking and `APP_UNINSTALLED` for data cleanup. The compliance topics (`customers/redact`, `shop/redact`, `customers/data_request`) are subscribed in `shopify.app.toml` but are only logged.
-
-## Testing
-
-### Test the store profile
-
-```bash
-curl https://your-dev-store.myshopify.com/apps/agent/ucp
-```
-
-### Test the MCP endpoint
-
-```bash
-curl -X POST https://your-app.vercel.app/api/mcp/your-dev-store.myshopify.com \
-  -H "Content-Type: application/json" \
-  -d '{
-    "jsonrpc": "2.0",
-    "method": "tools/list",
-    "id": 1
-  }'
-```
-
-## Merchant dashboard
-
-The dashboard shows:
-
-- **AI revenue**: total order value of interactions that the webhook marked as converted
-- **Conversations**: the number of logged agent interactions (each tool call counts as one)
-- **Conversion rate**: converted interactions divided by all logged interactions, including searches and product lookups. It is not a checkout-to-purchase ratio.
-- **Missed opportunities**: searches that returned no results
-
-Revenue is always formatted as USD, whatever the store's currency.
 
 ## Security
 
 - Admin pages (`/app/*`) authenticate with Shopify session tokens through `@shopify/shopify-app-remix`.
-- The MCP endpoint (`/api/mcp/:shop`) has no authentication and no rate limiting. Anyone who knows a shop's `myshopify.com` domain can call it, and it runs Admin API product queries with that shop's offline access token.
-- Access tokens are stored in plain text in the `Session` table. They are not encrypted.
-- App Proxy requests are verified with Shopify's HMAC signature.
-- Webhooks are verified with Shopify's HMAC signature.
-- Public endpoints return generic error messages. Error details are logged on the server only.
+- The MCP endpoint has **no authentication and no rate limiting**. Anyone who knows an installed shop's `myshopify.com` domain can call it, and it runs Admin API product queries with that shop's offline access token. Do not install the app on a real store until this is fixed.
+- Access tokens are stored in plain text in the `Session` table.
+- App Proxy requests and webhooks are verified with Shopify's HMAC signatures.
+- The app requests only `read_products` and `read_orders`.
+- Public endpoints return generic error messages. Details are logged on the server only.
+- `npm audit` still reports advisories that need major upgrades: Prisma 7 (`@prisma/config`, `deepmerge-ts`), and Remix 2 to React Router 7 (`react-router`, `@remix-run/dev`'s `toml` and older `vite`). Most are in build tooling.
+
+## Status and roadmap
+
+Working and checked locally against PostgreSQL 16, with the production build and the Neon driver: the MCP endpoint (all methods, `get_store_info`, argument checks, error statuses, CORS), the store profile with a signed App Proxy request, the login redirect, and the landing page. Unit tests cover the JSON-RPC helpers.
+
+Not verified yet: installing on a real development store (OAuth, session storage, webhooks) and the Admin API calls behind `search_products` and `get_product`.
+
+Next steps, roughly in order:
+
+1. Install on a development store and fix what that turns up.
+2. Per-shop API keys and rate limiting for `/api/mcp/:shop`.
+3. Checkout links through the Storefront API `cartCreate` mutation, which also makes order attribution work.
+4. Encrypt stored access tokens.
+5. Move `get_product` from the deprecated `productByHandle` to `productByIdentifier`.
+6. Upgrade to React Router 7 and Prisma 7 to clear the remaining advisories.
+7. Show revenue in the store's currency; the dashboard formats it as USD.
+
+## Contributing
+
+Issues and pull requests are welcome. Run the [checks](#checks) before opening a pull request; CI runs the same commands. Keep commits small and use [Conventional Commits](https://www.conventionalcommits.org) (`fix(api): ...`, `docs: ...`).
 
 ## License
 

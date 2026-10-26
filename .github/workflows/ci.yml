@@ -16,21 +16,48 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      # Throwaway database for checking the Prisma migrations. No secrets.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: uag
+          POSTGRES_PASSWORD: uag_ci
+          POSTGRES_DB: uag
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U uag"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://uag:uag_ci@localhost:5432/uag
+
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       # postinstall runs `prisma generate`, which needs no database.
       - run: npm ci
 
+      - run: npm run lint
+
       - run: npm run typecheck
 
       - run: npm test
 
-      - run: npm run build
+      - name: Apply migrations to an empty database
+        run: npx prisma migrate deploy
 
-      # `npm run lint` is not run: the repo has no ESLint config yet.
+      - name: Check the migrations match prisma/schema.prisma
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+
+      - run: npm run build

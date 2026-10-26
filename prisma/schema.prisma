@@ -1,7 +1,6 @@
 // 1. Setup & Generator
 generator client {
-  provider        = "prisma-client-js"
-  previewFeatures = ["driverAdapters"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -9,24 +8,35 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// 2. The Merchant (Multi-tenant Auth)
-// Stores Shopify OAuth tokens securely for 10,000+ shops
+// 2. Shopify sessions
+// Written by @shopify/shopify-app-session-storage-prisma, which needs every
+// column below. Access tokens are stored in plain text (see README Security).
+// `shop` is unique because the app only stores offline sessions, one per shop.
 model Session {
-  id          String    @id // Shopify Session ID
-  shop        String    @unique // e.g., "cool-brand.myshopify.com" - unique for relation
-  state       String
-  isOnline    Boolean   @default(false)
-  scope       String?
-  expires     DateTime?
-  accessToken String
-  userId      BigInt?
+  id                  String    @id // Shopify session ID
+  shop                String    @unique // e.g. "cool-brand.myshopify.com"
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
 
   // Relation to our app's specific data
   profile MerchantProfile?
 }
 
-// 3. The "Brain" Configuration
-// This lets the merchant customize how the AI talks about their brand.
+// 3. Per-shop settings
+// Brand voice and policy notes that the MCP endpoint returns to agents.
 model MerchantProfile {
   id              String   @id @default(uuid())
   shop            String   @unique
@@ -53,8 +63,8 @@ model MerchantProfile {
   @@index([isEnabled])
 }
 
-// 4. "Agent Analytics" (The ROI Engine)
-// Tracks every conversation and every dollar earned
+// 4. Agent interactions
+// One row per tool call. Conversion fields are set by the orders/create webhook.
 model AgentInteraction {
   id             String   @id @default(uuid())
   merchantId     String   // Links to MerchantProfile.id
@@ -87,8 +97,8 @@ model AgentInteraction {
   @@index([checkoutId])
 }
 
-// 5. Missed Opportunity Tracking (Viral Feature)
-// Track searches that returned 0 results
+// 5. Missed searches
+// Search terms that returned no products.
 model MissedOpportunity {
   id         String   @id @default(uuid())
   shop       String

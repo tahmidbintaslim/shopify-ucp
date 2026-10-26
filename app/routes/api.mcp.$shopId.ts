@@ -1,17 +1,17 @@
 /**
- * MCP Server Endpoint - The "Brain"
- * Handles AI Agent requests using Model Context Protocol
- * 
+ * MCP-style endpoint for AI agents.
+ *
  * Route: /api/mcp/:shopId
- * Protocol: JSON-RPC 2.0 over HTTP
+ * Protocol: JSON-RPC 2.0 over plain HTTP POST (no SSE), modeled on MCP
+ * 2024-11-05. It has no authentication; see the README Security section.
  */
 
 import { json, type ActionFunctionArgs, type LoaderFunctionArgs } from "@remix-run/node";
-import prisma from "../db.server";
+import type { Prisma } from "@prisma/client";
+import prisma, { isDatabaseConfigured } from "../db.server";
 import {
     searchProducts,
     getProductByHandle,
-    createCheckoutLink,
     logInteraction,
     trackMissedOpportunity,
     buildSystemPrompt,
@@ -24,12 +24,43 @@ import {
     PARSE_ERROR,
     RpcError,
     SERVER_ERROR,
+    clampSearchLimit,
     parseRpcRequest,
     parseToolCall,
     requestId,
+    requireStringArg,
     rpcErrorResponse,
+    serviceUnavailable,
     type RpcId,
 } from "../utils/json-rpc";
+
+// Resource routes ignore a `headers` export, so every response sets these.
+const CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
+function respond(body: unknown, status = 200) {
+    return json(body, { status, headers: CORS_HEADERS });
+}
+
+const STORE_INFO_TOPICS = ["shipping", "returns", "brand", "all"] as const;
+type StoreInfoTopic = (typeof STORE_INFO_TOPICS)[number];
+
+type MerchantSession = Prisma.SessionGetPayload<{ include: { profile: true } }>;
+type MerchantProfile = NonNullable<MerchantSession["profile"]>;
+
+interface ToolContent {
+    type: "text";
+    text: string;
+    data?: unknown;
+}
+
+interface ToolResult {
+    content: ToolContent[];
+    isError?: boolean;
+}
 
 // MCP Tool Definitions
 const TOOLS = [
@@ -45,8 +76,10 @@ const TOOLS = [
                 },
                 limit: {
                     type: "integer",
-                    description: "Maximum number of results to return",
+                    description: "Maximum number of results to return (1 to 50)",
                     default: 10,
+                    minimum: 1,
+                    maximum: 50,
                 },
             },
             required: ["query"],
@@ -68,7 +101,7 @@ const TOOLS = [
     },
     {
         name: "create_checkout",
-        description: "Create an instant checkout link for one or more products. Returns a URL the customer can use to purchase.",
+        description: "Not available yet: this prototype returns an error result for every call. Meant to create a checkout link for one or more product variants.",
         inputSchema: {
             type: "object",
             properties: {
@@ -102,12 +135,31 @@ const TOOLS = [
     },
 ];
 
-// Helper to get merchant session and profile
-async function getMerchantSession(shopId: string) {
-    const session = await prisma.session.findFirst({
-        where: { shop: shopId },
-        include: { profile: true },
-    });
+/**
+ * Loads the shop's session and settings. A missing or unreachable database
+ * becomes a 503 so a misconfigured deployment does not look like a code bug.
+ */
+async function findMerchantSession(shopId: string): Promise<MerchantSession | null> {
+    if (!isDatabaseConfigured()) {
+        console.error("MCP request rejected: DATABASE_URL is not set");
+        throw serviceUnavailable();
+    }
+
+    try {
+        return await prisma.session.findFirst({
+            where: { shop: shopId },
+            include: { profile: true },
+        });
+    } catch (error) {
+        console.error("MCP session lookup failed", { shop: shopId }, error);
+        throw serviceUnavailable();
+    }
+}
+
+async function getMerchantSession(
+    shopId: string,
+): Promise<MerchantSession & { profile: MerchantProfile }> {
+    const session = await findMerchantSession(shopId);
 
     if (!session) {
         throw new RpcError(SERVER_ERROR, "Shop not found", 404);
@@ -117,23 +169,27 @@ async function getMerchantSession(shopId: string) {
         throw new RpcError(SERVER_ERROR, "Agent is disabled for this shop", 403);
     }
 
-    return session;
+    return { ...session, profile: session.profile };
+}
+
+function textResult(text: string, data?: unknown): ToolResult {
+    return { content: [data === undefined ? { type: "text", text } : { type: "text", text, data }] };
 }
 
 // Handle MCP Tool Calls
 async function handleToolCall(
     toolName: string,
-    args: Record<string, any>,
-    session: any,
-    merchantProfile: any
-): Promise<any> {
+    args: Record<string, unknown>,
+    session: MerchantSession,
+    merchantProfile: MerchantProfile,
+): Promise<ToolResult> {
     const shop = session.shop;
     const accessToken = session.accessToken;
 
     switch (toolName) {
         case "search_products": {
-            const query = args.query as string;
-            const limit = (args.limit as number) || 10;
+            const query = requireStringArg(args, "query");
+            const limit = clampSearchLimit(args.limit);
 
             const products = await searchProducts(shop, accessToken, query, limit);
 
@@ -142,49 +198,31 @@ async function handleToolCall(
                 await trackMissedOpportunity(shop, query);
             }
 
-            // Log the interaction
-            await logInteraction(
-                merchantProfile.id,
-                "search_products",
-                query,
-                undefined,
-                undefined,
-                undefined,
-                undefined
-            );
+            await logInteraction(merchantProfile.id, "search_products", query);
 
-            return {
-                type: "text",
-                text: products.length > 0
+            return textResult(
+                products.length > 0
                     ? formatProductsForAI(products)
                     : `No products found for "${query}". Try a different search term.`,
-                data: products, // Raw data for structured access
-            };
+                products, // Raw data for structured access
+            );
         }
 
         case "get_product": {
-            const handle = args.handle as string;
+            const handle = requireStringArg(args, "handle");
             const product = await getProductByHandle(shop, accessToken, handle);
 
-            await logInteraction(
-                merchantProfile.id,
-                "get_product",
-                handle
-            );
+            await logInteraction(merchantProfile.id, "get_product", handle);
 
             if (!product) {
-                return {
-                    type: "text",
-                    text: `Product with handle "${handle}" not found.`,
-                };
+                return textResult(`Product with handle "${handle}" not found.`);
             }
 
             const availableVariants = product.variants.filter(v => v.availableForSale);
 
-            return {
-                type: "text",
-                text: `**${product.title}**
-        
+            return textResult(
+                `**${product.title}**
+
 ${product.description || "No description available."}
 
 Price: ${product.priceRange.minVariantPrice.currencyCode} ${product.priceRange.minVariantPrice.amount}
@@ -192,64 +230,37 @@ ${availableVariants.length} variant(s) in stock
 
 Variants:
 ${availableVariants.map(v => `- ${v.title}: ${v.price} (ID: ${v.id})`).join("\n")}`,
-                data: product,
-            };
+                product,
+            );
         }
 
         case "create_checkout": {
-            const variantIds = args.variant_ids as string[];
-            const quantities = (args.quantities as number[]) || variantIds.map(() => 1);
-
-            // Create interaction first to get ID for attribution
-            const interactionId = await logInteraction(
-                merchantProfile.id,
-                "create_checkout",
-                JSON.stringify({ variantIds, quantities })
-            );
-
-            const checkout = await createCheckoutLink(
-                shop,
-                accessToken,
-                variantIds,
-                quantities,
-                interactionId
-            );
-
-            // Update interaction with checkout details
-            await prisma.agentInteraction.update({
-                where: { id: interactionId },
-                data: {
-                    checkoutId: checkout.checkoutId,
-                    checkoutUrl: checkout.checkoutUrl,
-                    potentialValue: parseFloat(checkout.totalPrice),
-                },
-            });
-
+            // Carts are a Storefront API feature, and the app has no
+            // Storefront access token yet. Report a tool error instead of
+            // sending a request that cannot succeed.
             return {
-                type: "text",
-                text: `✅ Checkout created!
-
-**Total:** ${checkout.currencyCode} ${checkout.totalPrice}
-**Checkout URL:** ${checkout.checkoutUrl}
-
-Share this link with the customer to complete their purchase.`,
-                data: {
-                    checkoutUrl: checkout.checkoutUrl,
-                    checkoutId: checkout.checkoutId,
-                    totalPrice: checkout.totalPrice,
-                    currencyCode: checkout.currencyCode,
-                },
+                isError: true,
+                content: [
+                    {
+                        type: "text",
+                        text: "Checkout links are not available yet. Share the product page with the customer instead.",
+                    },
+                ],
             };
         }
 
         case "get_store_info": {
-            const topic = args.topic as string || "all";
+            const topic: StoreInfoTopic =
+                typeof args.topic === "string" &&
+                (STORE_INFO_TOPICS as readonly string[]).includes(args.topic)
+                    ? (args.topic as StoreInfoTopic)
+                    : "all";
             const context: MerchantContext = {
                 shop,
                 accessToken,
                 brandVoice: merchantProfile.brandVoice,
-                returnPolicy: merchantProfile.returnPolicy,
-                shippingInfo: merchantProfile.shippingInfo,
+                returnPolicy: merchantProfile.returnPolicy ?? undefined,
+                shippingInfo: merchantProfile.shippingInfo ?? undefined,
                 minFreeShipping: merchantProfile.minFreeShipping,
             };
 
@@ -278,10 +289,7 @@ Share this link with the customer to complete their purchase.`,
 
             await logInteraction(merchantProfile.id, "get_store_info", topic);
 
-            return {
-                type: "text",
-                text: info || "No store information available.",
-            };
+            return textResult(info || "No store information available.");
         }
 
         default:
@@ -294,10 +302,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
     const shopId = params.shopId;
 
     if (!shopId) {
-        return json(
-            { error: "Shop ID is required" },
-            { status: 400 }
-        );
+        return respond({ error: "Shop ID is required" }, 400);
     }
 
     let id: RpcId = null;
@@ -323,7 +328,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
         switch (method) {
             case "initialize": {
                 // Return server capabilities
-                return json({
+                return respond({
                     jsonrpc: "2.0",
                     id,
                     result: {
@@ -341,7 +346,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
 
             case "tools/list": {
                 // Return available tools
-                return json({
+                return respond({
                     jsonrpc: "2.0",
                     id,
                     result: {
@@ -353,25 +358,14 @@ export async function action({ request, params }: ActionFunctionArgs) {
             case "tools/call": {
                 const { name, args } = parseToolCall(rpcParams);
 
-                const result = await handleToolCall(
-                    name,
-                    args as Record<string, any>,
-                    session,
-                    session.profile
-                );
+                const result = await handleToolCall(name, args, session, session.profile);
 
-                return json({
-                    jsonrpc: "2.0",
-                    id,
-                    result: {
-                        content: [result],
-                    },
-                });
+                return respond({ jsonrpc: "2.0", id, result });
             }
 
             case "resources/list": {
                 // Return available resources (store context)
-                return json({
+                return respond({
                     jsonrpc: "2.0",
                     id,
                     result: {
@@ -388,19 +382,19 @@ export async function action({ request, params }: ActionFunctionArgs) {
             }
 
             case "resources/read": {
-                const uri = rpcParams.uri;
+                const uri = typeof rpcParams.uri === "string" ? rpcParams.uri : "";
 
                 if (uri === `shop://${shopId}/context`) {
                     const context: MerchantContext = {
                         shop: session.shop,
                         accessToken: session.accessToken,
-                        brandVoice: session.profile?.brandVoice || "friendly",
-                        returnPolicy: session.profile?.returnPolicy ?? undefined,
-                        shippingInfo: session.profile?.shippingInfo ?? undefined,
-                        minFreeShipping: session.profile?.minFreeShipping || 0,
+                        brandVoice: session.profile.brandVoice || "friendly",
+                        returnPolicy: session.profile.returnPolicy ?? undefined,
+                        shippingInfo: session.profile.shippingInfo ?? undefined,
+                        minFreeShipping: session.profile.minFreeShipping || 0,
                     };
 
-                    return json({
+                    return respond({
                         jsonrpc: "2.0",
                         id,
                         result: {
@@ -415,7 +409,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
                     });
                 }
 
-                return json({
+                return respond({
                     jsonrpc: "2.0",
                     id,
                     error: {
@@ -426,7 +420,7 @@ export async function action({ request, params }: ActionFunctionArgs) {
             }
 
             default:
-                return json({
+                return respond({
                     jsonrpc: "2.0",
                     id,
                     error: {
@@ -442,50 +436,43 @@ export async function action({ request, params }: ActionFunctionArgs) {
         }
 
         const { status, body } = rpcErrorResponse(id, error);
-        return json(body, { status });
+        return respond(body, status);
     }
 }
 
-// Handle GET requests (health check / capability discovery)
-export async function loader({ params }: LoaderFunctionArgs) {
+// GET: status summary for an installed shop. OPTIONS: CORS preflight.
+// Remix sends both to the loader of a resource route.
+export async function loader({ request, params }: LoaderFunctionArgs) {
+    if (request.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
+
     const shopId = params.shopId;
 
     if (!shopId) {
-        return json({ error: "Shop ID is required" }, { status: 400 });
+        return respond({ error: "Shop ID is required" }, 400);
     }
 
+    let session: MerchantSession | null;
     try {
-        const session = await prisma.session.findFirst({
-            where: { shop: shopId },
-            include: { profile: true },
-        });
-
-        if (!session) {
-            return json({ error: "Shop not found" }, { status: 404 });
-        }
-
-        return json({
-            status: "active",
-            shop: shopId,
-            agentEnabled: session.profile?.isEnabled ?? false,
-            mcp: {
-                version: "2024-11-05",
-                transport: "http",
-                endpoint: `${process.env.SHOPIFY_APP_URL}/api/mcp/${encodeURIComponent(shopId)}`,
-            },
-            tools: TOOLS.map(t => t.name),
-        });
-    } catch (error) {
-        console.error("MCP status check failed", { shop: shopId }, error);
-        return json({ error: "Internal error" }, { status: 500 });
+        session = await findMerchantSession(shopId);
+    } catch {
+        return respond({ error: "Service unavailable" }, 503);
     }
-}
 
-// CORS headers for cross-origin requests
-export function headers() {
-    return {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    };
+    if (!session) {
+        return respond({ error: "Shop not found" }, 404);
+    }
+
+    return respond({
+        status: "active",
+        shop: shopId,
+        agentEnabled: session.profile?.isEnabled ?? false,
+        mcp: {
+            version: "2024-11-05",
+            transport: "http",
+            endpoint: `${process.env.SHOPIFY_APP_URL}/api/mcp/${encodeURIComponent(shopId)}`,
+        },
+        tools: TOOLS.map(t => t.name),
+    });
 }

@@ -29,12 +29,7 @@ import {
 import { useState, useCallback, useRef, useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import {
-  searchProducts,
-  getProductByHandle,
-  createCheckoutLink,
-  formatProductsForAI,
-} from "../utils/agent-logic";
+import { searchProducts, formatProductsForAI } from "../utils/agent-logic";
 
 // --- BACKEND ---
 
@@ -110,8 +105,6 @@ export async function action({ request }: ActionFunctionArgs) {
       response: `I understand you're asking about "${message}". Try asking me to:
       
 • **Find products**: "Show me red dresses under $50"
-• **Get details**: "Tell me about the vintage jacket"
-• **Create checkout**: "I want to buy the blue sweater"
 
 How can I help you shop today?`,
       type: "help",
@@ -142,17 +135,12 @@ export default function Playground() {
     {
       id: "welcome",
       role: "assistant",
-      content: `👋 Hi! I'm your AI shopping assistant for ${shop.replace(
-        ".myshopify.com",
-        "",
-      )}. 
+      content: `Test chat for ${shop.replace(".myshopify.com", "")}.
 
-I can help customers:
-• Find products they're looking for
-• Answer questions about your store
-• Create instant checkout links
+This playground matches keywords; it is not a language model. Ask it to
+find or search for products, and it runs a product search.
 
-Try chatting with me as if you were a customer!`,
+Type a message the way a customer would.`,
       timestamp: new Date(),
     },
   ]);
@@ -198,13 +186,6 @@ Try chatting with me as if you were a customer!`,
     fetcher.submit({ message: input }, { method: "POST" });
     setInput("");
   }, [input, fetcher]);
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
 
   const isLoading = fetcher.state === "submitting";
 

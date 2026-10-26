@@ -14,7 +14,6 @@ import {
   useLoaderData,
   useSubmit,
   useNavigation,
-  Form,
 } from "@remix-run/react";
 import {
   Page,
@@ -52,6 +51,8 @@ export async function loader({ request }: LoaderFunctionArgs) {
       customPrompt: "",
     },
     shop,
+    // Read on the server: Vite empties process.env in the client bundle.
+    appUrl: process.env.SHOPIFY_APP_URL || "[APP_URL]",
   });
 }
 
@@ -102,7 +103,7 @@ const BRAND_VOICE_OPTIONS = [
 ];
 
 export default function Settings() {
-  const { profile, shop } = useLoaderData<typeof loader>();
+  const { profile, shop, appUrl } = useLoaderData<typeof loader>();
   const submit = useSubmit();
   const navigation = useNavigation();
 
@@ -244,7 +245,7 @@ export default function Settings() {
                       onChange={setCustomPrompt}
                       multiline={5}
                       placeholder="E.g., Always mention our current sale. Never recommend competitor products..."
-                      helpText="These instructions will be added to the AI's base prompt."
+                      helpText="Saved with your settings, but not sent to agents yet."
                       autoComplete="off"
                     />
                   </FormLayout>
@@ -298,7 +299,7 @@ export default function Settings() {
                       <strong>MCP Endpoint:</strong>
                     </Text>
                     <Text as="p" variant="bodySm" tone="subdued" breakWord>
-                      {process.env.SHOPIFY_APP_URL || "[APP_URL]"}/api/mcp/
+                      {appUrl}/api/mcp/
                       {shop}
                     </Text>
                   </BlockStack>

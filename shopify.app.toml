@@ -18,7 +18,7 @@ api_version = "2025-10"
   uri = "/webhooks"
 
 [access_scopes]
-scopes = "write_products,read_products,read_orders,write_orders,read_checkouts,write_checkouts"
+scopes = "read_products,read_orders"
 optional_scopes = [ ]
 use_legacy_install_flow = false
 

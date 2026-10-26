@@ -6,12 +6,17 @@ import {
     INVALID_PARAMS,
     INVALID_REQUEST,
     RpcError,
+    SEARCH_LIMIT_DEFAULT,
+    SEARCH_LIMIT_MAX,
     SERVER_ERROR,
+    clampSearchLimit,
     normalizeId,
     parseRpcRequest,
     parseToolCall,
     requestId,
+    requireStringArg,
     rpcErrorResponse,
+    serviceUnavailable,
 } from "../app/utils/json-rpc.ts";
 
 describe("rpcErrorResponse", () => {
@@ -150,5 +155,54 @@ describe("requestId", () => {
         assert.equal(requestId([{ id: 1, method: "tools/list" }]), null);
         assert.equal(requestId(null), null);
         assert.equal(requestId({ method: "tools/list" }), null);
+    });
+});
+
+describe("serviceUnavailable", () => {
+    it("maps to HTTP 503 with a generic message", () => {
+        const { status, body } = rpcErrorResponse(3, serviceUnavailable());
+
+        assert.equal(status, 503);
+        assert.deepEqual(body.error, { code: SERVER_ERROR, message: "Service unavailable" });
+    });
+});
+
+describe("requireStringArg", () => {
+    it("returns the trimmed value", () => {
+        assert.equal(requireStringArg({ query: "  red dress " }, "query"), "red dress");
+    });
+
+    for (const value of [undefined, null, 42, "", "   ", ["a"], { a: 1 }]) {
+        it(`rejects ${JSON.stringify(value)} with a 400 invalid params error`, () => {
+            assert.throws(
+                () => requireStringArg({ query: value }, "query"),
+                (error: unknown) =>
+                    error instanceof RpcError &&
+                    error.code === INVALID_PARAMS &&
+                    error.httpStatus === 400 &&
+                    error.message.includes('"query"'),
+            );
+        });
+    }
+});
+
+describe("clampSearchLimit", () => {
+    it("uses the default for a missing or non-numeric value", () => {
+        for (const value of [undefined, null, "20", Number.NaN, Number.POSITIVE_INFINITY]) {
+            assert.equal(clampSearchLimit(value), SEARCH_LIMIT_DEFAULT);
+        }
+    });
+
+    it("keeps a value inside the range", () => {
+        assert.equal(clampSearchLimit(1), 1);
+        assert.equal(clampSearchLimit(25), 25);
+        assert.equal(clampSearchLimit(SEARCH_LIMIT_MAX), SEARCH_LIMIT_MAX);
+    });
+
+    it("clamps values outside the range and drops fractions", () => {
+        assert.equal(clampSearchLimit(0), 1);
+        assert.equal(clampSearchLimit(-5), 1);
+        assert.equal(clampSearchLimit(10_000), SEARCH_LIMIT_MAX);
+        assert.equal(clampSearchLimit(7.9), 7);
     });
 });
