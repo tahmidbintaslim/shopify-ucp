@@ -1,10 +1,19 @@
+<div align="center">
+
 # Universal Agent Gateway
 
-A prototype Shopify embedded app that gives AI agents an MCP-style JSON-RPC endpoint for searching a store's catalog and reading its policies.
+**Let AI agents search a Shopify store's catalog and read its policies over one JSON-RPC endpoint.**
+
+A prototype Shopify embedded app with an MCP-style JSON-RPC endpoint, an App Proxy store profile and a Polaris admin for the merchant.
 
 [![CI](https://github.com/tahmidbintaslim/shopify-ucp/actions/workflows/ci.yml/badge.svg)](https://github.com/tahmidbintaslim/shopify-ucp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Last commit](https://img.shields.io/github/last-commit/tahmidbintaslim/shopify-ucp)](https://github.com/tahmidbintaslim/shopify-ucp/commits/main)
 ![Status: prototype](https://img.shields.io/badge/status-prototype-orange.svg)
+[![Landing page](https://img.shields.io/badge/landing%20page-vercel.app-black)](https://universal-agent-gateway.vercel.app)
+[![GitHub stars](https://img.shields.io/github/stars/tahmidbintaslim/shopify-ucp?style=social)](https://github.com/tahmidbintaslim/shopify-ucp/stargazers)
+
+</div>
 
 **Status: prototype, not production-ready.** The app has not been installed on a real store yet, the MCP endpoint has no authentication, and checkout links are not built. See [Status and roadmap](#status-and-roadmap).
 
@@ -14,6 +23,47 @@ A prototype Shopify embedded app that gives AI agents an MCP-style JSON-RPC endp
   <img src="docs/images/landing-desktop.webp" alt="Landing page of the Universal Agent Gateway prototype on desktop: title, a card saying install is not available with a link to the source on GitHub, and three feature cards for product search, order attribution and store settings" width="640">
   <img src="docs/images/landing-mobile.webp" alt="The same landing page on a 390 pixel wide phone screen" width="180">
 </p>
+
+## Contents
+
+- [Quick start](#quick-start)
+- [Features](#features)
+- [Tech stack](#tech-stack)
+- [Architecture](#architecture)
+- [Getting started](#getting-started)
+- [Deployment](#deployment)
+- [API](#api)
+- [Project structure](#project-structure)
+- [Security](#security)
+- [Status and roadmap](#status-and-roadmap)
+- [Contributing](#contributing)
+- [License](#license)
+
+## Quick start
+
+Try the MCP endpoint locally without a Shopify store. You need Node.js 22.6 or later and a PostgreSQL database.
+
+```bash
+git clone https://github.com/tahmidbintaslim/shopify-ucp.git universal-agent-gateway
+cd universal-agent-gateway
+npm ci
+cp .env.example .env              # set DATABASE_URL
+set -a; . ./.env; set +a
+npx prisma migrate deploy
+psql "$DATABASE_URL" -f scripts/demo-shop.sql
+SHOPIFY_API_KEY=local SHOPIFY_API_SECRET=local SHOPIFY_APP_URL=http://localhost:5173 \
+  npx remix vite:dev --port 5173
+```
+
+Then call a tool:
+
+```bash
+curl -s http://localhost:5173/api/mcp/demo-store.myshopify.com \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+The full walkthrough, including what works with the placeholder shop, is in [Getting started](#getting-started).
 
 ## Features
 
@@ -72,8 +122,8 @@ The MCP endpoint looks up the shop's offline session and settings in Postgres, t
 ### Install
 
 ```bash
-git clone https://github.com/tahmidbintaslim/shopify-ucp.git
-cd shopify-ucp
+git clone https://github.com/tahmidbintaslim/shopify-ucp.git universal-agent-gateway
+cd universal-agent-gateway
 npm ci            # also runs prisma generate
 cp .env.example .env
 # edit .env, at least DATABASE_URL, then export it for the commands below:
@@ -268,7 +318,7 @@ Next steps, roughly in order:
 
 ## Contributing
 
-Issues and pull requests are welcome. Run the [checks](#checks) before opening a pull request; CI runs the same commands. Keep commits small and use [Conventional Commits](https://www.conventionalcommits.org) (`fix(api): ...`, `docs: ...`).
+Issues and pull requests are welcome. Run the [checks](#checks) before opening a pull request; CI runs the same commands. Keep commits small and use [Conventional Commits](https://www.conventionalcommits.org) (`fix(api): ...`, `docs: ...`). See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow, and [SECURITY.md](SECURITY.md) to report a vulnerability privately.
 
 ## License
 
