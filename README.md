@@ -233,6 +233,8 @@ app/
 └── utils/
     ├── agent-logic.ts        # Admin GraphQL queries and interaction logging
     └── json-rpc.ts           # JSON-RPC parsing, argument checks, safe errors
+clients/python/               # Python MCP catalog and checkout clients (from shopify-mcp-projects)
+docs/research/                # Planning notes on MCP, UCP and agent shopping
 extensions/agent-discovery/   # Theme app embed (adds the <link> tag)
 prisma/                       # Schema and migrations
 scripts/demo-shop.sql         # Placeholder shop for local testing

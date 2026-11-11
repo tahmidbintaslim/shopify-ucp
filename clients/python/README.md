@@ -17,7 +17,7 @@ a live Shopify MCP endpoint. There is no chat front end or agent loop yet.
 | `unified_catalog_agent.py` | `UnifiedCatalogAgent`: search, then fetch details for each hit |
 | `cart_checkout_subagent.py` | `CartCheckoutSubAgent`: create, get, update, complete and cancel checkout sessions through MCP `tools/call` |
 | `test_*.py` | pytest unit tests with mocked `requests` sessions |
-| `*.md` | Planning notes: architecture plan, MCP/UCP summary, project ideas |
+| [`../../docs/research/`](../../docs/research/) | Planning notes: architecture plan, MCP/UCP summary, project ideas |
 
 ## Stack
 
@@ -26,8 +26,8 @@ Python 3.10+, `requests`, `pytest`.
 ## Setup
 
 ```bash
-git clone https://github.com/tahmidbintaslim/shopify-mcp-projects.git
-cd shopify-mcp-projects
+git clone https://github.com/tahmidbintaslim/shopify-ucp.git
+cd shopify-ucp/clients/python
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
 python -m pytest -q
