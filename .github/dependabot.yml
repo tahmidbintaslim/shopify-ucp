@@ -23,3 +23,11 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
+
+  - package-ecosystem: pip
+    directory: /clients/python
+    schedule:
+      interval: weekly
+      day: monday
+    cooldown:
+      default-days: 14
