@@ -49,6 +49,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
       shippingInfo: "",
       minFreeShipping: 0,
       customPrompt: "",
+      promptpayStoreKey: "",
     },
     shop,
     // Read on the server: Vite empties process.env in the client bundle.
@@ -66,6 +67,7 @@ export async function action({ request }: ActionFunctionArgs) {
   const minFreeShipping =
     parseFloat(formData.get("minFreeShipping") as string) || 0;
   const customPrompt = formData.get("customPrompt") as string;
+  const promptpayStoreKey = ((formData.get("promptpayStoreKey") as string) || "").trim() || null;
 
   await prisma.merchantProfile.upsert({
     where: { shop: session.shop },
@@ -75,6 +77,7 @@ export async function action({ request }: ActionFunctionArgs) {
       shippingInfo,
       minFreeShipping,
       customPrompt,
+      promptpayStoreKey,
       updatedAt: new Date(),
     },
     create: {
@@ -84,6 +87,7 @@ export async function action({ request }: ActionFunctionArgs) {
       shippingInfo,
       minFreeShipping,
       customPrompt,
+      promptpayStoreKey,
       isEnabled: true,
     },
   });
@@ -118,6 +122,7 @@ export default function Settings() {
     String(profile.minFreeShipping || ""),
   );
   const [customPrompt, setCustomPrompt] = useState(profile.customPrompt || "");
+  const [promptpayStoreKey, setPromptpayStoreKey] = useState(profile.promptpayStoreKey || "");
 
   // Show saved banner temporarily
   useEffect(() => {
@@ -134,6 +139,7 @@ export default function Settings() {
     formData.append("shippingInfo", shippingInfo);
     formData.append("minFreeShipping", minFreeShipping);
     formData.append("customPrompt", customPrompt);
+    formData.append("promptpayStoreKey", promptpayStoreKey);
 
     submit(formData, { method: "POST" });
     setSaved(true);
@@ -143,6 +149,7 @@ export default function Settings() {
     shippingInfo,
     minFreeShipping,
     customPrompt,
+    promptpayStoreKey,
     submit,
   ]);
 
@@ -246,6 +253,30 @@ export default function Settings() {
                       multiline={5}
                       placeholder="E.g., Always mention our current sale. Never recommend competitor products..."
                       helpText="Saved with your settings, but not sent to agents yet."
+                      autoComplete="off"
+                    />
+                  </FormLayout>
+                </BlockStack>
+              </Card>
+            </Box>
+
+            {/* PromptPay */}
+            <Box paddingBlockStart="400">
+              <Card>
+                <BlockStack gap="400">
+                  <Text as="h2" variant="headingMd">
+                    PromptPay slip checking
+                  </Text>
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    With a key, slips that customers upload on the thank-you page are checked and paid orders are marked as paid.
+                  </Text>
+                  <FormLayout>
+                    <TextField
+                      label="PromptPay Flow store key"
+                      value={promptpayStoreKey}
+                      onChange={setPromptpayStoreKey}
+                      type="password"
+                      placeholder="ppf_..."
                       autoComplete="off"
                     />
                   </FormLayout>

@@ -8,9 +8,10 @@ import {
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
 import prisma from "./db.server";
 
-// Only the scopes the code uses: product search and lookup, and the
-// orders/create webhook. Keep in sync with shopify.app.toml.
-const DEFAULT_SCOPES = ["read_products", "read_orders"];
+// Only the scopes the code uses: product search and lookup, the
+// orders/create webhook, and marking PromptPay orders as paid.
+// Keep in sync with shopify.app.toml.
+const DEFAULT_SCOPES = ["read_products", "read_orders", "write_orders"];
 
 const prismaSessionStorage = new PrismaSessionStorage(prisma);
 

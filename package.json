@@ -10,7 +10,7 @@
     "lint": "eslint --ignore-path .gitignore --cache --cache-location ./node_modules/.cache/eslint .",
     "shopify": "shopify",
     "start": "remix-serve ./build/server/index.js",
-    "typecheck": "tsc",
+    "typecheck": "tsc && tsc -p extensions/promptpay-slip",
     "test": "node --experimental-strip-types --test \"test/**/*.test.ts\"",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
@@ -92,5 +92,8 @@
     "express": ">=4.20.0 <5",
     "body-parser": ">=1.20.9 <2",
     "diff": ">=5.2.2 <6"
-  }
+  },
+  "workspaces": [
+    "extensions/promptpay-slip"
+  ]
 }

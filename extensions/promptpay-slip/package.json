@@ -1,0 +1,11 @@
+{
+  "name": "promptpay-slip",
+  "private": true,
+  "version": "1.0.0",
+  "license": "MIT",
+  "dependencies": {
+    "@preact/signals": "^2.11.4",
+    "@shopify/ui-extensions": "2026.10.2",
+    "preact": "^10.29.8"
+  }
+}

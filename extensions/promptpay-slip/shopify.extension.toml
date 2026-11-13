@@ -1,0 +1,22 @@
+# PromptPay QR and slip upload on the Thank you page.
+api_version = "2026-10"
+
+[[extensions]]
+name = "PromptPay slip"
+handle = "promptpay-slip"
+type = "ui_extension"
+
+[[extensions.targeting]]
+target = "purchase.thank-you.block.render"
+module = "./src/ThankYou.tsx"
+
+# Sends the slip to this app's /api/slip. Needs "Allow network access" in the Partner Dashboard.
+[extensions.capabilities]
+network_access = true
+
+[extensions.settings]
+  [[extensions.settings.fields]]
+  key = "promptpay_id"
+  type = "single_line_text_field"
+  name = "PromptPay ID"
+  description = "10-digit mobile number or 13-digit national/tax ID that receives payments."
