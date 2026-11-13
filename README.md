@@ -27,6 +27,22 @@ What the code does today:
 - **Embedded admin** (Polaris): a dashboard with interaction counts, a settings page for brand voice and policies, and a keyword-matching test chat. There is no language model in the app; agents bring their own.
 - **Webhooks**: `app/uninstalled` deletes the shop's data. `orders/create` is meant to mark orders that came from an agent, but it depends on checkout links, so it records nothing yet.
 
+## PromptPay on the Thank you page
+
+The `promptpay-slip` checkout extension shows a PromptPay QR for the order total on the Thank you page and lets the buyer upload the transfer slip.
+
+1. The extension sends the slip and the order ID to `POST /api/slip`, authenticated with the checkout session token.
+2. The route reads the order's outstanding amount from the Admin API (never from the browser), checks it is in THB, and sends the slip to the [PromptPay Flow verify service](https://github.com/tahmidbintaslim/Woo-Prompt-Pay/blob/main/site/README.md#slip-verification-service) with the shop's store key.
+3. A verified slip marks the order paid with `orderMarkAsPaid`.
+
+Setup per shop:
+
+- Create a manual payment method (Settings, Payments) named PromptPay.
+- Add the store key (`ppf_...`) under the app's Settings page.
+- Add the PromptPay slip block to the Thank you page in the checkout editor and enter the PromptPay ID.
+
+Before deploying: allow network access for checkout UI extensions in the Partner Dashboard (API access requests), and reinstall or re-approve the app for the new `write_orders` scope.
+
 ## Tech stack
 
 | Layer | Tools |

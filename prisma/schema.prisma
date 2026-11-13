@@ -54,6 +54,9 @@ model MerchantProfile {
   // System Prompt Override (Advanced)
   customPrompt    String?
 
+  // PromptPay Flow store key (ppf_...): lets the thank-you page extension verify payment slips
+  promptpayStoreKey String?
+
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
