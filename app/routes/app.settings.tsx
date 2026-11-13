@@ -272,11 +272,11 @@ export default function Settings() {
                   </Text>
                   <FormLayout>
                     <TextField
-                      label="PromptPay Flow store key"
+                      label="Swadipay store key"
                       value={promptpayStoreKey}
                       onChange={setPromptpayStoreKey}
                       type="password"
-                      placeholder="ppf_..."
+                      placeholder="swp_..."
                       autoComplete="off"
                     />
                   </FormLayout>
