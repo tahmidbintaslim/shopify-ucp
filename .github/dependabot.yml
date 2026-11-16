@@ -12,6 +12,15 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Lift when @shopify/shopify-app-session-storage-prisma supports Prisma 7.
+      - dependency-name: "@prisma/client"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "prisma"
+        update-types: ["version-update:semver-major"]
+      # Lift after the Remix 2 to React Router 7 move: @remix-run/dev supports Vite 5-6 only.
+      - dependency-name: "vite"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
