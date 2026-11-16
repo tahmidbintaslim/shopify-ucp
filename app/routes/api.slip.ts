@@ -3,14 +3,14 @@
  * Form fields: `image` (slip photo) and `orderId` (from shopify.orderConfirmation).
  *
  * The amount is read from the order here, never taken from the browser. The slip
- * goes to the PromptPay Flow service with the shop's store key; a verified slip
+ * goes to the Swadipay service with the shop's store key; a verified slip
  * marks the order as paid.
  */
 import { json, type ActionFunctionArgs } from "@remix-run/node";
 import { authenticate, unauthenticated } from "../shopify.server";
 import prisma from "../db.server";
 
-const SERVICE_URL = process.env.PROMPTPAY_FLOW_URL || "https://promptpay-storefront.vercel.app";
+const SERVICE_URL = process.env.SWADIPAY_URL || "https://promptpay-storefront.vercel.app";
 
 const ORDER_QUERY = `#graphql
   query PromptPayOrder($id: ID!) {
