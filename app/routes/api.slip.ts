@@ -1,16 +1,14 @@
 /**
  * POST /api/slip — called by the PromptPay thank-you page extension.
  * Form fields: `image` (slip photo) and `orderId` (from shopify.orderConfirmation).
- *
- * The amount is read from the order here, never taken from the browser. The slip
- * goes to the Swadipay service with the shop's store key; a verified slip
- * marks the order as paid.
+ * The decisions live in utils/slip.ts; this route wires in Shopify and the Swadipay service.
  */
 import { json, type ActionFunctionArgs } from "@remix-run/node";
 import { authenticate, unauthenticated } from "../shopify.server";
 import prisma from "../db.server";
+import { orderGid, processSlip } from "../utils/slip";
 
-const SERVICE_URL = process.env.SWADIPAY_URL || "https://promptpay-storefront.vercel.app";
+const SERVICE_URL = process.env.SWADIPAY_URL || "https://swadipay-tahmid-bin-taslim-rafis-projects.vercel.app";
 
 const ORDER_QUERY = `#graphql
   query PromptPayOrder($id: ID!) {
@@ -37,40 +35,31 @@ export async function action({ request }: ActionFunctionArgs) {
 
   const form = await request.formData().catch(() => null);
   const image = form?.get("image");
-  // The extension sends gid://shopify/OrderIdentity/<n>; the Admin API wants gid://shopify/Order/<n>.
-  const orderNumber = /(\d+)$/.exec(String(form?.get("orderId") ?? ""))?.[1];
-  if (!(image instanceof Blob) || !orderNumber) return reply({ verified: false, reason: "invalid_request" }, 400);
+  const gid = orderGid(form?.get("orderId"));
+  if (!(image instanceof Blob) || !gid) return reply({ verified: false, reason: "invalid_request" }, 400);
 
   const profile = await prisma.merchantProfile.findUnique({ where: { shop } });
-  if (!profile?.promptpayStoreKey) return reply({ verified: false, reason: "not_configured" });
+  const storeKey = profile?.promptpayStoreKey;
+  if (!storeKey) return reply({ verified: false, reason: "not_configured" });
 
   const { admin } = await unauthenticated.admin(shop);
-  const orderRes = await admin.graphql(ORDER_QUERY, { variables: { id: `gid://shopify/Order/${orderNumber}` } });
-  const order = (await orderRes.json()).data?.order;
-  // On the thank-you page the order can take a few seconds to exist.
-  if (!order) return reply({ verified: false, reason: "order_not_ready" });
-  if (!order.canMarkAsPaid) return reply({ verified: true, reason: "already_paid" });
-  const { amount, currencyCode } = order.totalOutstandingSet.shopMoney;
-  if (currencyCode !== "THB") return reply({ verified: false, reason: "not_thb" });
-
-  const upstream = new FormData();
-  upstream.append("image", image);
-  upstream.append("amount", amount);
-  const verdict = await fetch(`${SERVICE_URL}/api/v1/verify`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${profile.promptpayStoreKey}` },
-    body: upstream,
-  })
-    .then((r) => r.json())
-    .catch(() => ({ verified: false, reason: "verifier_unavailable" }));
-  if (!verdict.verified) return reply({ verified: false, reason: verdict.reason ?? "verifier_unavailable" });
-
-  const markRes = await admin.graphql(MARK_PAID, { variables: { input: { id: order.id } } });
-  const errors = (await markRes.json()).data?.orderMarkAsPaid?.userErrors ?? [];
-  if (errors.length) {
-    // Money arrived but Shopify refused the update: log it so the merchant can mark it by hand.
-    console.error("orderMarkAsPaid failed", shop, order.id, verdict.transRef, errors);
-    return reply({ verified: true, reason: "mark_paid_failed" });
-  }
-  return reply({ verified: true, transRef: verdict.transRef });
+  return reply(
+    await processSlip(image, gid, {
+      fetchOrder: async (id) => (await (await admin.graphql(ORDER_QUERY, { variables: { id } })).json()).data?.order ?? null,
+      verify: async (img, amount) => {
+        const body = new FormData();
+        body.append("image", img);
+        body.append("amount", amount);
+        const res = await fetch(`${SERVICE_URL}/api/v1/verify`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${storeKey}` },
+          body,
+        });
+        return res.json();
+      },
+      markPaid: async (id) =>
+        (await (await admin.graphql(MARK_PAID, { variables: { input: { id } } })).json()).data?.orderMarkAsPaid?.userErrors ?? [],
+      log: (...args) => console.error(shop, ...args),
+    }),
+  );
 }
